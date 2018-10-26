@@ -31,7 +31,7 @@ require 'time'
 # License:: MIT
 class Futex
   def initialize(path, log: STDOUT, timeout: 16, sleep: 0.005,
-    lock: path + '.lock', logging: true)
+    lock: path + '.lock', logging: false)
     raise "File path can't be nil" if path.nil?
     @path = path
     raise "Log can't be nil" if log.nil?

@@ -36,7 +36,7 @@ class FutexTest < Minitest::Test
     Dir.mktmpdir do |dir|
       path = File.join(dir, 'a/b/c/file.txt')
       Threads.new(2).assert do |_, r|
-        Futex.new(path, logging: false).open do |f|
+        Futex.new(path, logging: true).open do |f|
           text = "op no.#{r}"
           IO.write(f, text)
           assert_equal(text, IO.read(f))
@@ -49,7 +49,7 @@ class FutexTest < Minitest::Test
     Dir.mktmpdir do |dir|
       path = File.join(dir, 'a/b/c/file.txt')
       Threads.new(20).assert(200) do |_, r|
-        Futex.new(path, logging: false).open do |f|
+        Futex.new(path).open do |f|
           text = "op no.#{r}"
           IO.write(f, text)
           sleep 0.01

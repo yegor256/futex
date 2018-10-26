@@ -34,7 +34,7 @@ constructor of the `Futex` class, including:
   * `log`: an object that implements `debug()` method, which will
     receive supplementary messages from the locking mechanism;
 
-  * `logging`: set it to `false` if you don't want to see any logs;
+  * `logging`: set it to `true` if you want to see logs;
 
   * `timeout`: the number of seconds to wait for the lock availability
     (an exception is raised when the wait is expired);
