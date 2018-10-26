@@ -52,33 +52,31 @@ class Futex
     FileUtils.mkdir_p(File.dirname(@lock))
     step = (1 / @sleep).to_i
     start = Time.now
-    cycle = 0
-    loop do
-      if File.new(@lock, File::CREAT | File::RDWR)
-        .flock(File::LOCK_EX | File::LOCK_NB)
-        break
+    File.open(@lock, File::CREAT | File::RDWR) do |f|
+      cycle = 0
+      loop do
+        break if f.flock(File::LOCK_EX | File::LOCK_NB)
+        sleep(@sleep)
+        cycle += 1
+        if Time.now - start > @timeout
+          raise "##{Process.pid}/#{Thread.current.name} can't get \
+  exclusive access to the file #{@path} \
+  because of the lock at #{@lock}, after #{age(start)} \
+  of waiting: #{IO.read(@lock)}"
+        end
+        if (cycle % step).zero? && Time.now - start > @timeout / 2
+          debug("##{Process.pid}/#{Thread.current.name} still waiting for \
+  exclusive access to #{@path}, #{age(start)} already: #{IO.read(@lock)}")
+        end
       end
-      sleep(@sleep)
-      cycle += 1
-      if Time.now - start > @timeout
-        raise "##{Process.pid}/#{Thread.current.name} can't get \
-exclusive access to the file #{@path} \
-because of the lock at #{@lock}, after #{age(start)} \
-of waiting: #{IO.read(@lock)}"
-      end
-      if (cycle % step).zero? && Time.now - start > @timeout / 2
-        debug("##{Process.pid}/#{Thread.current.name} still waiting for \
-exclusive access to #{@path}, #{age(start)} already: #{IO.read(@lock)}")
-      end
+      debug("Locked by \"#{Thread.current.name}\" in #{age(start)}: #{@path} \
+  (attempt no.#{cycle})")
+      File.write(@lock, "##{Process.pid}/#{Thread.current.name}")
+      acq = Time.now
+      res = yield(@path)
+      debug("Unlocked by \"#{Thread.current.name}\" in #{age(acq)}: #{@path}")
+      res
     end
-    debug("Locked by \"#{Thread.current.name}\" in #{age(start)}: #{@path} \
-(attempt no.#{cycle})")
-    File.write(@lock, "##{Process.pid}/#{Thread.current.name}")
-    acq = Time.now
-    res = yield(@path)
-    FileUtils.rm(@lock)
-    debug("Unlocked by \"#{Thread.current.name}\" in #{age(acq)}: #{@path}")
-    res
   end
 
   private
