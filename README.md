@@ -37,6 +37,10 @@ constructor of the `Futex` class, including:
   * `timeout`: the number of seconds to wait for the lock availability
     (an exception is raised when the wait is expired);
 
+  * `sleep`: the number of seconds to wait between attempts to acquire
+    the lock file (the smaller the number, the more reactive is the software,
+    but the higher the load for the file system and the CPU).
+
 That's it.
 
 # How to contribute

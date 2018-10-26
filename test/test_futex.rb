@@ -44,4 +44,30 @@ class FutexTest < Minitest::Test
       end
     end
   end
+
+  def test_syncs_access_to_file_in_slow_motion
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, 'a/b/c/file.txt')
+      Threads.new(2).assert(4) do |_, r|
+        Futex.new(path).open do |f|
+          text = "op no.#{r}"
+          IO.write(f, text)
+          sleep 0.2
+          assert_equal(text, IO.read(f))
+        end
+      end
+    end
+  end
+
+  def test_cleans_up_the_mess
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, 'hey.txt')
+      Futex.new(File.join(dir, 'hey.txt')).open do |f|
+        IO.write(f, 'hey')
+        FileUtils.rm(f)
+      end
+      puts Dir.new(dir).to_a
+      assert_equal(2, Dir.new(dir).count)
+    end
+  end
 end
