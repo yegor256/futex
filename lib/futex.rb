@@ -30,14 +30,14 @@ require 'time'
 # Copyright:: Copyright (c) 2018 Yegor Bugayenko
 # License:: MIT
 class Futex
-  def initialize(path, log: STDOUT, timeout: 30, sleep: 0.005,
+  def initialize(path, log: STDOUT, timeout: 16, sleep: 0.005,
     lock: path + '.lock')
     raise "File path can't be nil" if path.nil?
     @path = path
     raise "Log can't be nil" if log.nil?
     @log = log
     raise "Timeout can't be nil" if timeout.nil?
-    raise "Timeout can't be negative or zero: #{timeout}" unless timeout.positive?
+    raise "Timeout must be positive: #{timeout}" unless timeout.positive?
     @timeout = timeout
     raise "Sleep can't be nil" if sleep.nil?
     raise "Sleep can't be negative or zero: #{sleep}" unless sleep.positive?
@@ -47,33 +47,35 @@ class Futex
   end
 
   def open
-    FileUtils.mkdir_p(File.dirname(@path))
+    FileUtils.mkdir_p(File.dirname(@lock))
     step = (1 / @sleep).to_i
-    res = File.open(@lock, File::RDWR | File::CREAT) do |f|
-      start = Time.now
-      cycle = 0
-      loop do
-        break if f.flock(File::LOCK_EX | File::LOCK_NB)
-        sleep(@sleep)
-        cycle += 1
-        if Time.now - start > @timeout
-          raise "##{Process.pid}/#{Thread.current.name} can't get \
-exclusive access to the file #{@path} \
-because of the lock at #{f.path}, after #{age(start)} of waiting: #{f.read}"
-        end
-        if (cycle % step).zero? && Time.now - start > @timeout / 2
-          debug("##{Process.pid}/#{Thread.current.name} still waiting for \
-exclusive access to #{@path}, #{age(start)} already: #{f.read}")
-        end
+    start = Time.now
+    cycle = 0
+    loop do
+      if File.new(@lock, File::CREAT | File::RDWR)
+        .flock(File::LOCK_EX | File::LOCK_NB)
+        break
       end
-      debug("Locked by \"#{Thread.current.name}\" in #{age(start)}: #{@path} \
-(attempt no.#{cycle})")
-      f.write("##{Process.pid}/#{Thread.current.name}")
-      acq = Time.now
-      yield(@path)
-      puts("Unlocked by \"#{Thread.current.name}\" in #{age(acq)}: #{@path}")
-      FileUtils.rm(@lock)
+      sleep(@sleep)
+      cycle += 1
+      if Time.now - start > @timeout
+        raise "##{Process.pid}/#{Thread.current.name} can't get \
+exclusive access to the file #{@path} \
+because of the lock at #{@lock}, after #{age(start)} \
+of waiting: #{IO.read(@lock)}"
+      end
+      if (cycle % step).zero? && Time.now - start > @timeout / 2
+        debug("##{Process.pid}/#{Thread.current.name} still waiting for \
+exclusive access to #{@path}, #{age(start)} already: #{IO.read(@lock)}")
+      end
     end
+    debug("Locked by \"#{Thread.current.name}\" in #{age(start)}: #{@path} \
+(attempt no.#{cycle})")
+    File.write(@lock, "##{Process.pid}/#{Thread.current.name}")
+    acq = Time.now
+    res = yield(@path)
+    FileUtils.rm(@lock)
+    puts("Unlocked by \"#{Thread.current.name}\" in #{age(acq)}: #{@path}")
     res
   end
 

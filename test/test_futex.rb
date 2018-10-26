@@ -61,12 +61,10 @@ class FutexTest < Minitest::Test
 
   def test_cleans_up_the_mess
     Dir.mktmpdir do |dir|
-      path = File.join(dir, 'hey.txt')
       Futex.new(File.join(dir, 'hey.txt')).open do |f|
         IO.write(f, 'hey')
         FileUtils.rm(f)
       end
-      puts Dir.new(dir).to_a
       assert_equal(2, Dir.new(dir).count)
     end
   end
