@@ -34,12 +34,16 @@ constructor of the `Futex` class, including:
   * `log`: an object that implements `debug()` method, which will
     receive supplementary messages from the locking mechanism;
 
+  * `logging`: set it to `false` if you don't want to see any logs;
+
   * `timeout`: the number of seconds to wait for the lock availability
     (an exception is raised when the wait is expired);
 
   * `sleep`: the number of seconds to wait between attempts to acquire
     the lock file (the smaller the number, the more reactive is the software,
-    but the higher the load for the file system and the CPU).
+    but the higher the load for the file system and the CPU);
+
+  * `lock`: the absolute path of the lock file;
 
 That's it.
 

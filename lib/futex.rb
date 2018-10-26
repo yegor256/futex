@@ -31,11 +31,13 @@ require 'time'
 # License:: MIT
 class Futex
   def initialize(path, log: STDOUT, timeout: 16, sleep: 0.005,
-    lock: path + '.lock')
+    lock: path + '.lock', logging: true)
     raise "File path can't be nil" if path.nil?
     @path = path
     raise "Log can't be nil" if log.nil?
     @log = log
+    raise "Logging can't be nil" if logging.nil?
+    @logging = logging
     raise "Timeout can't be nil" if timeout.nil?
     raise "Timeout must be positive: #{timeout}" unless timeout.positive?
     @timeout = timeout
@@ -75,7 +77,7 @@ exclusive access to #{@path}, #{age(start)} already: #{IO.read(@lock)}")
     acq = Time.now
     res = yield(@path)
     FileUtils.rm(@lock)
-    puts("Unlocked by \"#{Thread.current.name}\" in #{age(acq)}: #{@path}")
+    debug("Unlocked by \"#{Thread.current.name}\" in #{age(acq)}: #{@path}")
     res
   end
 
@@ -86,6 +88,7 @@ exclusive access to #{@path}, #{age(start)} already: #{IO.read(@lock)}")
   end
 
   def debug(msg)
+    return unless @logging
     if @log.respond_to?(:debug)
       @log.debug(msg)
     elsif @log.respond_to?(:puts)
