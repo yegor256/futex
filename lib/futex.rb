@@ -25,11 +25,25 @@
 require 'fileutils'
 require 'time'
 
-# Futex.
+# Futex (file mutex) is a fine-grained mutex that uses a file, not an entire
+# thread, like <tt>Mutex</tt> does. Use it like this:
+#
+#  require 'futex'
+#  Futex.new('/tmp/my-file.txt').open |f|
+#    File.write(f, 'Hello, world!')
+#  end
+#
+# The file <tt>/tmp/my-file.txt.lock<tt> will be created and
+# used as an entrance lock.
+#
+# For more information read
+# {README}[https://github.com/yegor256/futex/blob/master/README.md] file.
+#
 # Author:: Yegor Bugayenko (yegor256@gmail.com)
 # Copyright:: Copyright (c) 2018 Yegor Bugayenko
 # License:: MIT
 class Futex
+  # Creates a new instance of the class.
   def initialize(path, log: STDOUT, timeout: 16, sleep: 0.005,
     lock: path + '.lock', logging: false)
     raise "File path can't be nil" if path.nil?
