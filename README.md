@@ -26,7 +26,7 @@ end
 ```
 
 The file `/tmp/my-file.txt.lock` will be created and used as an entrance lock.
-It will be deleted afterwards.
+It <del>will</del> [won't](https://github.com/yegor256/futex/issues/5) be deleted afterwards.
 
 For better traceability you can provide a few arguments to the
 constructor of the `Futex` class, including:
