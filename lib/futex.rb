@@ -63,6 +63,7 @@ class Futex
   end
 
   def open
+    raise 'Block must be given' unless block_given?
     FileUtils.mkdir_p(File.dirname(@lock))
     step = (1 / @sleep).to_i
     start = Time.now
