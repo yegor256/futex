@@ -4,6 +4,7 @@
 [![Build Status](https://travis-ci.org/yegor256/futex.svg)](https://travis-ci.org/yegor256/futex)
 [![Gem Version](https://badge.fury.io/rb/futex.svg)](http://badge.fury.io/rb/futex)
 [![Maintainability](https://api.codeclimate.com/v1/badges/5528e182bb5e4a2ecc1f/maintainability)](https://codeclimate.com/github/yegor256/futex/maintainability)
+[![Yard Docs](http://img.shields.io/badge/yard-docs-blue.svg)](http://rubydoc.info/github/yegor256/futex/master/frames)
 
 Sometimes you need to synchronize your block of code, but `Mutex` is too coarse-grained,
 because it _always locks_, no matter what objects your code accesses. The
