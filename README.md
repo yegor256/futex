@@ -3,6 +3,7 @@
 [![We recommend RubyMine](http://www.elegantobjects.org/rubymine.svg)](https://www.jetbrains.com/ruby/)
 
 [![Build Status](https://travis-ci.org/yegor256/futex.svg)](https://travis-ci.org/yegor256/futex)
+[![Build status](https://ci.appveyor.com/api/projects/status/po1mn8ca96jk0llr?svg=true)](https://ci.appveyor.com/project/yegor256/futex)
 [![Gem Version](https://badge.fury.io/rb/futex.svg)](http://badge.fury.io/rb/futex)
 [![Maintainability](https://api.codeclimate.com/v1/badges/5528e182bb5e4a2ecc1f/maintainability)](https://codeclimate.com/github/yegor256/futex/maintainability)
 [![Yard Docs](http://img.shields.io/badge/yard-docs-blue.svg)](http://rubydoc.info/github/yegor256/futex/master/frames)
