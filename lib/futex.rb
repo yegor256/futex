@@ -92,6 +92,9 @@ exclusive access to #{@path}, #{age(start)} already: #{IO.read(@lock)}")
       debug("Unlocked by \"#{Thread.current.name}\" in #{age(acq)}: #{@path}")
       res
     end
+  ensure
+    return if @lock.nil? || !File.exist?(@lock)
+    File.delete(@lock)
   end
 
   private
