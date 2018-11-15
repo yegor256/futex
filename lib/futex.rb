@@ -30,11 +30,20 @@ require 'time'
 #
 #  require 'futex'
 #  Futex.new('/tmp/my-file.txt').open |f|
-#    File.write(f, 'Hello, world!')
+#    IO.write(f, 'Hello, world!')
 #  end
 #
 # The file <tt>/tmp/my-file.txt.lock<tt> will be created and
 # used as an entrance lock.
+#
+# If you are not planning to write to the file, to speed things up, you may
+# want to get a non-exclusive access to it, by providing <tt>false</tt> to
+# the method <tt>open()</tt>:
+#
+#  require 'futex'
+#  Futex.new('/tmp/my-file.txt').open(false) |f|
+#    IO.read(f)
+#  end
 #
 # For more information read
 # {README}[https://github.com/yegor256/futex/blob/master/README.md] file.
@@ -46,31 +55,25 @@ class Futex
   # Creates a new instance of the class.
   def initialize(path, log: STDOUT, timeout: 16, sleep: 0.005,
     lock: path + '.lock', logging: false)
-    raise "File path can't be nil" if path.nil?
     @path = path
-    raise "Log can't be nil" if log.nil?
     @log = log
-    raise "Logging can't be nil" if logging.nil?
     @logging = logging
-    raise "Timeout can't be nil" if timeout.nil?
-    raise "Timeout must be positive: #{timeout}" unless timeout.positive?
     @timeout = timeout
-    raise "Sleep can't be nil" if sleep.nil?
-    raise "Sleep can't be negative or zero: #{sleep}" unless sleep.positive?
     @sleep = sleep
-    raise "Lock path can't be nil" if lock.nil?
     @lock = lock
   end
 
-  def open
-    raise 'Block must be given' unless block_given?
+  # Open the file.
+  def open(exclusive = true)
     FileUtils.mkdir_p(File.dirname(@lock))
     step = (1 / @sleep).to_i
     start = Time.now
     File.open(@lock, File::CREAT | File::RDWR) do |f|
       cycle = 0
       loop do
-        break if f.flock(File::LOCK_EX | File::LOCK_NB)
+        if f.flock((exclusive ? File::LOCK_EX : File::LOCK_SH) | File::LOCK_NB)
+          break
+        end
         sleep(@sleep)
         cycle += 1
         if Time.now - start > @timeout

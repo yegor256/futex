@@ -25,6 +25,8 @@
 require 'minitest/autorun'
 require 'tmpdir'
 require 'threads'
+require 'digest'
+require 'securerandom'
 require_relative '../lib/futex'
 
 # Futex test.
@@ -54,6 +56,27 @@ class FutexTest < Minitest::Test
           IO.write(f, text)
           sleep 0.01
           assert_equal(text, IO.read(f))
+        end
+      end
+    end
+  end
+
+  def test_non_exclusive_locking
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, 'g/e/f/file.txt')
+      Threads.new(20).assert(1000) do |_, r|
+        if (r % 50).zero?
+          Futex.new(path).open do |f|
+            text = SecureRandom.hex(1024)
+            hash = Digest::SHA256.hexdigest(text)
+            IO.write(f, text + ' ' + hash)
+          end
+        end
+        Futex.new(path).open(false) do |f|
+          if File.exist?(f)
+            text, hash = IO.read(f, text).split(' ')
+            assert_equal(hash, Digest::SHA256.hexdigest(text))
+          end
         end
       end
     end

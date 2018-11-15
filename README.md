@@ -24,12 +24,23 @@ Then, use it like this:
 ```ruby
 require 'futex'
 Futex.new('/tmp/my-file.txt').open |f|
-  File.write(f, 'Hello, world!')
+  IO.write(f, 'Hello, world!')
 end
 ```
 
 The file `/tmp/my-file.txt.lock` will be created and used as an entrance lock.
 It <del>will</del> [won't](https://github.com/yegor256/futex/issues/5) be deleted afterwards.
+
+If you are not planning to write to the file, it is recommended to get
+a non-exclusive/shared access to it, by providing `false` to the method
+`open()`:
+
+```ruby
+require 'futex'
+Futex.new('/tmp/my-file.txt').open(false) |f|
+  IO.read(f)
+end
+```
 
 For better traceability you can provide a few arguments to the
 constructor of the `Futex` class, including:
