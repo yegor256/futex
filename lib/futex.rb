@@ -93,8 +93,10 @@ exclusive access to #{@path}, #{age(start)} already: #{IO.read(@lock)}")
       res
     end
   ensure
-    return if @lock.nil? || !File.exist?(@lock)
-    File.delete(@lock)
+    at_exit do
+      next if @lock.nil? || !File.exist?(@lock)
+      File.delete(@lock)
+    end
   end
 
   private
