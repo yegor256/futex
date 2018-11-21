@@ -77,13 +77,13 @@ class Futex
         sleep(@sleep)
         cycle += 1
         if Time.now - start > @timeout
-          raise "#{badge} can't get exclusive access to the file #{@path} \
-because of the lock at #{@lock}, after #{age(start)} \
+          raise "#{badge} can't get #{exclusive ? '' : 'non-'}exclusive access \
+to the file #{@path} because of the lock at #{@lock}, after #{age(start)} \
 of waiting: #{IO.read(@lock)}"
         end
         if (cycle % step).zero? && Time.now - start > @timeout / 2
-          debug("#{badge} still waiting for \
-exclusive access to #{@path}, #{age(start)} already: #{IO.read(@lock)}")
+          debug("#{badge} still waiting for #{exclusive ? '' : 'non-'}exclusive
+access to #{@path}, #{age(start)} already: #{IO.read(@lock)}")
         end
       end
       debug("Locked by #{badge} in #{age(start)}: #{@path} \
