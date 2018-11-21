@@ -61,6 +61,24 @@ class FutexTest < Minitest::Test
     end
   end
 
+  def test_raises_if_cant_lock
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, 'the/simple/file.txt')
+      Thread.start do
+        Futex.new(path).open do
+          sleep 10
+        end
+      end
+      sleep 0.1
+      ex = assert_raises do
+        Futex.new(path, timeout: 0.1).open do |f|
+          # Will never reach this point
+        end
+      end
+      assert(ex.message.include?('can\'t get exclusive access to the file'), ex)
+    end
+  end
+
   def test_non_exclusive_locking
     Dir.mktmpdir do |dir|
       path = File.join(dir, 'g/e/f/file.txt')
