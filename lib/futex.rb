@@ -107,7 +107,12 @@ access to #{@path}, #{age(start)} already: #{IO.read(@lock)}")
   end
 
   def age(time)
-    "#{((Time.now - time) * 1000).round}ms"
+    sec = Time.now - time
+    return "#{(sec * 1_000_000).round}μs" if sec < 0.001
+    return "#{(sec * 1000).round}ms" if sec < 1
+    return "#{sec.round(2)}s" if sec < 60
+    return "#{(sec / 60).round}m" if sec < 60 * 60
+    "#{(sec / 3600).round}h"
   end
 
   def debug(msg)
