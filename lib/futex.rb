@@ -68,6 +68,8 @@ class Futex
     FileUtils.mkdir_p(File.dirname(@lock))
     step = (1 / @sleep).to_i
     start = Time.now
+    prefix = exclusive ? '' : 'non-'
+    b = badge(exclusive)
     File.open(@lock, File::CREAT | File::RDWR) do |f|
       cycle = 0
       loop do
@@ -77,31 +79,31 @@ class Futex
         sleep(@sleep)
         cycle += 1
         if Time.now - start > @timeout
-          raise "#{badge} can't get #{exclusive ? '' : 'non-'}exclusive access \
+          raise "#{b} can't get #{prefix}exclusive access \
 to the file #{@path} because of the lock at #{@lock}, after #{age(start)} \
 of waiting: #{IO.read(@lock)}"
         end
         if (cycle % step).zero? && Time.now - start > @timeout / 2
-          debug("#{badge} still waiting for #{exclusive ? '' : 'non-'}exclusive
+          debug("#{b} still waiting for #{prefix}exclusive
 access to #{@path}, #{age(start)} already: #{IO.read(@lock)}")
         end
       end
-      debug("Locked by #{badge} in #{age(start)}: #{@path} \
-(attempt no.#{cycle})")
-      File.write(@lock, badge)
+      debug("Locked by #{b} in #{age(start)}, #{prefix}exclusive: \
+#{@path} (attempt no.#{cycle})")
+      File.write(@lock, b)
       acq = Time.now
       res = yield(@path)
-      debug("Unlocked by #{badge} in #{age(acq)}: #{@path}")
+      debug("Unlocked by #{b} in #{age(acq)}, #{prefix}exclusive: #{@path}")
       res
     end
   end
 
   private
 
-  def badge
+  def badge(exclusive)
     tname = Thread.current.name
     tname = 'nil' if tname.nil?
-    "##{Process.pid}/#{tname}"
+    "##{Process.pid}-#{exclusive ? 'ex' : 'sh'}/#{tname}"
   end
 
   def age(time)
