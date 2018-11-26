@@ -70,7 +70,7 @@ class Futex
     start = Time.now
     prefix = exclusive ? '' : 'non-'
     b = badge(exclusive)
-    File.open(@lock, File::CREAT | File::RDWR) do |f|
+    File.open(@lock, exclusive ? File::CREAT | File::RDWR : File::RDONLY) do |f|
       cycle = 0
       loop do
         if f.flock((exclusive ? File::LOCK_EX : File::LOCK_SH) | File::LOCK_NB)
@@ -81,16 +81,16 @@ class Futex
         if Time.now - start > @timeout
           raise "#{b} can't get #{prefix}exclusive access \
 to the file #{@path} because of the lock at #{@lock}, after #{age(start)} \
-of waiting: #{IO.read(@lock)}"
+of waiting: #{safe_read(f)}"
         end
         if (cycle % step).zero? && Time.now - start > @timeout / 2
           debug("#{b} still waiting for #{prefix}exclusive
-access to #{@path}, #{age(start)} already: #{IO.read(@lock)}")
+access to #{@path}, #{age(start)} already: #{safe_read(f)}")
         end
       end
       debug("Locked by #{b} in #{age(start)}, #{prefix}exclusive: \
 #{@path} (attempt no.#{cycle})")
-      File.write(@lock, b)
+      f.write(b) if exclusive
       acq = Time.now
       res = yield(@path)
       debug("Unlocked by #{b} in #{age(acq)}, #{prefix}exclusive: #{@path}")
@@ -99,6 +99,14 @@ access to #{@path}, #{age(start)} already: #{IO.read(@lock)}")
   end
 
   private
+
+  def safe_read(file)
+    file.read
+    # Windows raise `Errno::EACCES: Permission denied @ io_fread` when
+    # file is blocked
+  rescue Errno::EACCES
+    '(content reading is denied)'
+  end
 
   def badge(exclusive)
     tname = Thread.current.name

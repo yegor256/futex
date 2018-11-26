@@ -35,7 +35,7 @@ require_relative '../lib/futex'
 # License:: MIT
 class FutexTest < Minitest::Test
   def test_syncs_access_to_file
-    Dir.mktmpdir do |dir|
+    mktmpdir do |dir|
       path = File.join(dir, 'a/b/c/file.txt')
       Threads.new(2).assert do |_, r|
         Futex.new(path, logging: true).open do |f|
@@ -48,7 +48,7 @@ class FutexTest < Minitest::Test
   end
 
   def test_syncs_access_to_file_in_slow_motion
-    Dir.mktmpdir do |dir|
+    mktmpdir do |dir|
       path = File.join(dir, 'a/b/c/file.txt')
       Threads.new(20).assert(200) do |_, r|
         Futex.new(path).open do |f|
@@ -62,7 +62,7 @@ class FutexTest < Minitest::Test
   end
 
   def test_raises_if_cant_lock
-    Dir.mktmpdir do |dir|
+    mktmpdir do |dir|
       path = File.join(dir, 'the/simple/file.txt')
       Thread.start do
         Futex.new(path).open do
@@ -80,7 +80,7 @@ class FutexTest < Minitest::Test
   end
 
   def test_non_exclusive_locking
-    Dir.mktmpdir do |dir|
+    mktmpdir do |dir|
       path = File.join(dir, 'g/e/f/file.txt')
       Threads.new(20).assert(1000) do |_, r|
         if (r % 50).zero?
@@ -105,12 +105,29 @@ class FutexTest < Minitest::Test
   # https://stackoverflow.com/questions/53011200
   def test_cleans_up_the_mess
     skip
-    Dir.mktmpdir do |dir|
+    mktmpdir do |dir|
       Futex.new(File.join(dir, 'hey.txt')).open do |f|
         IO.write(f, 'hey')
         FileUtils.rm(f)
       end
       assert_equal(2, Dir.new(dir).count)
+    end
+  end
+
+  private
+
+  def mktmpdir(prefix_suffix = nil, *rest)
+    path = Dir::Tmpname
+      .create(prefix_suffix || 'd', *rest) { |n| Dir.mkdir(n, 0o700) }
+    if block_given?
+      begin
+        yield path
+      ensure
+        # Force removing for Windows
+        FileUtils.remove_entry_secure path, true
+      end
+    else
+      path
     end
   end
 end
