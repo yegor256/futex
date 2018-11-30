@@ -47,6 +47,19 @@ class FutexTest < Minitest::Test
     end
   end
 
+  def test_syncs_read_only_access_to_file
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, 'file.txt')
+      text = 'Hello, world!'
+      IO.write(path, text)
+      Threads.new(2).assert do
+        Futex.new(path).open(false) do |f|
+          assert_equal(text, IO.read(f))
+        end
+      end
+    end
+  end
+
   def test_syncs_access_to_file_in_slow_motion
     Dir.mktmpdir do |dir|
       path = File.join(dir, 'a/b/c/file.txt')
