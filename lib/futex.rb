@@ -70,6 +70,8 @@ class Futex
     start = Time.now
     prefix = exclusive ? '' : 'non-'
     b = badge(exclusive)
+    Thread.current.thread_variable_set(:futex_lock, @lock)
+    Thread.current.thread_variable_set(:futex_badge, b)
     File.open(@lock, File::CREAT | File::RDWR) do |f|
       cycle = 0
       loop do

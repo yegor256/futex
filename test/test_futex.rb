@@ -126,4 +126,18 @@ class FutexTest < Minitest::Test
       assert_equal(2, Dir.new(dir).count)
     end
   end
+
+  def test_sets_thread_vars
+    Dir.mktmpdir do |dir|
+      Futex.new(File.join(dir, 'hey.txt')).open do |f|
+        assert_equal(
+          "#{f}.lock",
+          Thread.current.thread_variable_get(:futex_lock)
+        )
+        assert(
+          Thread.current.thread_variable_get(:futex_badge).end_with?('-ex/nil')
+        )
+      end
+    end
+  end
 end
