@@ -87,7 +87,7 @@ class Futex
         if Time.now - start > @timeout
           raise "#{b} can't get #{prefix}exclusive access \
 to the file #{@path} because of the lock at #{@lock}, after #{age(start)} \
-of waiting: #{IO.read(@lock)}"
+of waiting: #{IO.read(@lock)} (modified #{age(File.mtime(@lock))} ago)"
         end
         if (cycle % step).zero? && Time.now - start > @timeout / 2
           debug("#{b} still waiting for #{prefix}exclusive
