@@ -135,8 +135,17 @@ class FutexTest < Minitest::Test
           Thread.current.thread_variable_get(:futex_lock)
         )
         assert(
-          Thread.current.thread_variable_get(:futex_badge).end_with?('-ex/nil')
+          Thread.current.thread_variable_get(:futex_badge).include?('-ex/nil')
         )
+      end
+    end
+  end
+
+  def test_saves_calling_file_name_in_lock
+    Dir.mktmpdir do |dir|
+      Futex.new(File.join(dir, 'hey.txt')).open do |f|
+        badge = IO.read("#{f}.lock")
+        assert(badge.include?('test/test_futex.rb:'), badge)
       end
     end
   end

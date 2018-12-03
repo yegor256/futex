@@ -107,7 +107,7 @@ access to #{@path}, #{age(start)} already: #{IO.read(@lock)}")
   def badge(exclusive)
     tname = Thread.current.name
     tname = 'nil' if tname.nil?
-    "##{Process.pid}-#{exclusive ? 'ex' : 'sh'}/#{tname}"
+    "##{Process.pid}-#{exclusive ? 'ex' : 'sh'}/#{tname}[#{caller(2..2).first}]"
   end
 
   def age(time)
