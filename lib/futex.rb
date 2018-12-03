@@ -89,10 +89,10 @@ class Futex
 to the file #{@path} because of the lock at #{@lock}, after #{age(start)} \
 of waiting: #{IO.read(@lock)} (modified #{age(File.mtime(@lock))} ago)"
         end
-        if (cycle % step).zero? && Time.now - start > @timeout / 2
-          debug("#{b} still waiting for #{prefix}exclusive
-access to #{@path}, #{age(start)} already: #{IO.read(@lock)}")
-        end
+        next unless (cycle % step).zero? && Time.now - start > @timeout / 2
+        debug("#{b} still waiting for #{prefix}exclusive \
+access to #{@path}, #{age(start)} already: #{IO.read(@lock)} \
+(modified #{age(File.mtime(@lock))} ago)")
       end
       debug("Locked by #{b} in #{age(start)}, #{prefix}exclusive: \
 #{@path} (attempt no.#{cycle})")
