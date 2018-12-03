@@ -9,7 +9,7 @@ Layout/MultilineMethodCallIndentation:
 Metrics/AbcSize:
   Max: 50
 Metrics/MethodLength:
-  Max: 30
+  Max: 40
 Metrics/CyclomaticComplexity:
   Max: 10
 Metrics/PerceivedComplexity:

@@ -78,6 +78,8 @@ class Futex
         end
         sleep(@sleep)
         cycle += 1
+        Thread.current.thread_variable_set(:futex_cycle, cycle)
+        Thread.current.thread_variable_set(:futex_time, Time.now - start)
         if Time.now - start > @timeout
           raise "#{b} can't get #{prefix}exclusive access \
 to the file #{@path} because of the lock at #{@lock}, after #{age(start)} \
