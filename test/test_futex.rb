@@ -141,6 +141,15 @@ class FutexTest < Minitest::Test
     end
   end
 
+  def test_removes_thread_vars
+    Dir.mktmpdir do |dir|
+      Futex.new(File.join(dir, 'hey.txt')).open do |f|
+        # nothing
+      end
+      assert(Thread.current.thread_variable_get(:futex_lock).nil?)
+    end
+  end
+
   def test_saves_calling_file_name_in_lock
     Dir.mktmpdir do |dir|
       Futex.new(File.join(dir, 'hey.txt')).open do |f|

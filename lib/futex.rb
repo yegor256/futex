@@ -76,6 +76,8 @@ class Futex
       cycle = 0
       loop do
         if f.flock((exclusive ? File::LOCK_EX : File::LOCK_SH) | File::LOCK_NB)
+          Thread.current.thread_variable_set(:futex_cycle, nil)
+          Thread.current.thread_variable_set(:futex_time, nil)
           break
         end
         sleep(@sleep)
@@ -98,6 +100,8 @@ access to #{@path}, #{age(start)} already: #{IO.read(@lock)}")
       acq = Time.now
       res = yield(@path)
       debug("Unlocked by #{b} in #{age(acq)}, #{prefix}exclusive: #{@path}")
+      Thread.current.thread_variable_set(:futex_lock, nil)
+      Thread.current.thread_variable_set(:futex_badge, nil)
       res
     end
   end
