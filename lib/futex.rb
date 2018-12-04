@@ -100,10 +100,13 @@ access to #{@path}, #{age(start)} already: #{IO.read(@lock)} \
       acq = Time.now
       res = yield(@path)
       debug("Unlocked by #{b} in #{age(acq)}, #{prefix}exclusive: #{@path}")
-      Thread.current.thread_variable_set(:futex_lock, nil)
-      Thread.current.thread_variable_set(:futex_badge, nil)
       res
     end
+  ensure
+    Thread.current.thread_variable_set(:futex_cycle, nil)
+    Thread.current.thread_variable_set(:futex_time, nil)
+    Thread.current.thread_variable_set(:futex_lock, nil)
+    Thread.current.thread_variable_set(:futex_badge, nil)
   end
 
   private
