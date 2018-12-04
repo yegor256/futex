@@ -31,7 +31,7 @@ Gem::Specification.new do |s|
   s.rubygems_version = '2.3.3'
   s.required_ruby_version = '>=2.3'
   s.name = 'futex'
-  s.version = '0.0.0'
+  s.version = '0.6.3'
   s.license = 'MIT'
   s.summary = 'File-based mutex'
   s.description = 'Ruby Gem for file-based locking'
