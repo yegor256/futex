@@ -83,7 +83,7 @@ class FutexTest < Minitest::Test
         end
       end
       sleep 0.1
-      ex = assert_raises do
+      ex = assert_raises(Futex::CantLock) do
         Futex.new(path, timeout: 0.1).open do |f|
           # Will never reach this point
         end

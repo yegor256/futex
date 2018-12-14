@@ -34,7 +34,8 @@ require 'time'
 #  end
 #
 # The file <tt>/tmp/my-file.txt.lock<tt> will be created and
-# used as an entrance lock.
+# used as an entrance lock. If the file is already locked by another thread
+# or another process, exception <tt>Futex::CantLock</tt> will be raised.
 #
 # If you are not planning to write to the file, to speed things up, you may
 # want to get a non-exclusive access to it, by providing <tt>false</tt> to
@@ -52,6 +53,10 @@ require 'time'
 # Copyright:: Copyright (c) 2018 Yegor Bugayenko
 # License:: MIT
 class Futex
+  # Exception that is raised when we can't lock because of some other
+  # process that is holding the lock now.
+  class CantLock < StandardError; end
+
   # Creates a new instance of the class.
   def initialize(path, log: STDOUT, timeout: 16, sleep: 0.005,
     lock: path + '.lock', logging: false)
@@ -63,7 +68,17 @@ class Futex
     @lock = lock
   end
 
-  # Open the file.
+  # Open the file. By default the file will be locked for exclusive access,
+  # which means that absolutely no other process will be able to do the same.
+  # This type of access (exclusive) is supposed to be used when you are
+  # making changes to the file. However, very often you may need just to
+  # read it and it's OK to let many processes do the reading at the same time,
+  # provided none of them do the writing. In that case you should call this
+  # method <tt>open()</tt> with <tt>false</tt> first argument, which will mean
+  # "shared" access. Many threads and processes may have shared access to the
+  # same lock file, but they all will stop and wait if one of them will require
+  # an "exclusive" access. This mechanism is inherited from POSIX, read about
+  # it <a href="http://man7.org/linux/man-pages/man2/flock.2.html">here</a>.
   def open(exclusive = true)
     FileUtils.mkdir_p(File.dirname(@lock))
     step = (1 / @sleep).to_i
@@ -85,7 +100,7 @@ class Futex
         Thread.current.thread_variable_set(:futex_cycle, cycle)
         Thread.current.thread_variable_set(:futex_time, Time.now - start)
         if Time.now - start > @timeout
-          raise "#{b} can't get #{prefix}exclusive access \
+          raise CantLock, "#{b} can't get #{prefix}exclusive access \
 to the file #{@path} because of the lock at #{@lock}, after #{age(start)} \
 of waiting: #{IO.read(@lock)} (modified #{age(File.mtime(@lock))} ago)"
         end
