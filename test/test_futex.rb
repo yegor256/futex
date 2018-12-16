@@ -159,4 +159,10 @@ class FutexTest < Minitest::Test
       end
     end
   end
+
+  def test_works_without_block_given
+    Dir.mktmpdir do |dir|
+      Futex.new(File.join(dir, 'hey.txt')).open
+    end
+  end
 end

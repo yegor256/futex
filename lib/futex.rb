@@ -121,7 +121,7 @@ access to #{@path}, #{age(start)} already: #{IO.read(@lock)} \
 #{@path} (attempt no.#{cycle})")
       File.write(@lock, b)
       acq = Time.now
-      res = yield(@path)
+      res = block_given? ? yield(@path) : nil
       debug("Unlocked by #{b} in #{age(acq)}, #{prefix}exclusive: #{@path}")
       res
     end
