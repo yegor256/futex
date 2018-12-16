@@ -89,6 +89,7 @@ class FutexTest < Minitest::Test
         end
       end
       assert(ex.message.include?('can\'t get exclusive access to the file'), ex)
+      assert(!ex.start.nil?)
     end
   end
 

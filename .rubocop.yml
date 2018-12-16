@@ -7,7 +7,7 @@ Layout/EmptyLineAfterGuardClause:
 Layout/MultilineMethodCallIndentation:
   Enabled: false
 Metrics/AbcSize:
-  Max: 60
+  Max: 65
 Metrics/BlockLength:
   Max: 30
 Metrics/MethodLength:

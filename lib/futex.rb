@@ -54,8 +54,16 @@ require 'time'
 # License:: MIT
 class Futex
   # Exception that is raised when we can't lock because of some other
-  # process that is holding the lock now.
-  class CantLock < StandardError; end
+  # process that is holding the lock now. There is an encapsulated
+  # <tt>start</tt> attribute of type <tt>Time</tt>, which points to the time
+  # when we started to try to acquire lock.
+  class CantLock < StandardError
+    attr_reader :start
+    def initialize(msg, start)
+      @start = start
+      super(msg)
+    end
+  end
 
   # Creates a new instance of the class.
   def initialize(path, log: STDOUT, timeout: 16, sleep: 0.005,
@@ -100,9 +108,9 @@ class Futex
         Thread.current.thread_variable_set(:futex_cycle, cycle)
         Thread.current.thread_variable_set(:futex_time, Time.now - start)
         if Time.now - start > @timeout
-          raise CantLock, "#{b} can't get #{prefix}exclusive access \
+          raise CantLock.new("#{b} can't get #{prefix}exclusive access \
 to the file #{@path} because of the lock at #{@lock}, after #{age(start)} \
-of waiting: #{IO.read(@lock)} (modified #{age(File.mtime(@lock))} ago)"
+of waiting: #{IO.read(@lock)} (modified #{age(File.mtime(@lock))} ago)", start)
         end
         next unless (cycle % step).zero? && Time.now - start > @timeout / 2
         debug("#{b} still waiting for #{prefix}exclusive \
