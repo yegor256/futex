@@ -118,7 +118,6 @@ class FutexTest < Minitest::Test
   # afterwards, the flock() logic gets broken. More about it here:
   # https://stackoverflow.com/questions/53011200
   def test_cleans_up_the_mess
-    skip
     Dir.mktmpdir do |dir|
       Futex.new(File.join(dir, 'hey.txt')).open do |f|
         IO.write(f, 'hey')

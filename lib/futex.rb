@@ -24,6 +24,7 @@
 
 require 'fileutils'
 require 'time'
+require 'singleton'
 
 # Futex (file mutex) is a fine-grained mutex that uses a file, not an entire
 # thread, like <tt>Mutex</tt> does. Use it like this:
@@ -95,7 +96,7 @@ class Futex
     b = badge(exclusive)
     Thread.current.thread_variable_set(:futex_lock, @lock)
     Thread.current.thread_variable_set(:futex_badge, b)
-    File.open(@lock, File::CREAT | File::RDWR) do |f|
+    FS.instance.open(@lock) do |f|
       cycle = 0
       loop do
         if f.flock((exclusive ? File::LOCK_EX : File::LOCK_SH) | File::LOCK_NB)
@@ -155,6 +156,39 @@ access to #{@path}, #{age(start)} already: #{IO.read(@lock)} \
       @log.debug(msg)
     elsif @log.respond_to?(:puts)
       @log.puts(msg)
+    end
+  end
+
+  # file open/close/unlink synchronization
+  class FS
+    include Singleton
+
+    def initialize
+      @mutex = Mutex.new
+      @files = {}
+    end
+
+    def open(path)
+      path = File.absolute_path(path)
+      file = nil
+      @mutex.synchronize do
+        file = File.open(path, File::CREAT | File::RDWR)
+        ref_count = @files[path] || 0
+        @files[path] = ref_count + 1
+      end
+
+      yield file
+    ensure
+      @mutex.synchronize do
+        file.close
+        ref_count = @files[path] - 1
+        if ref_count.zero?
+          FileUtils.rm(path, force: true)
+          @files.delete(path)
+        else
+          @files[path] = ref_count
+        end
+      end
     end
   end
 end
