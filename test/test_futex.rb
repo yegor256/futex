@@ -93,23 +93,52 @@ class FutexTest < Minitest::Test
     end
   end
 
-  def test_non_exclusive_locking
+  def test_exclusive_and_shared_locking
     Dir.mktmpdir do |dir|
       path = File.join(dir, 'g/e/f/file.txt')
       Threads.new(20).assert(1000) do |_, r|
         if (r % 50).zero?
           Futex.new(path).open do |f|
             text = SecureRandom.hex(1024)
-            hash = Digest::SHA256.hexdigest(text)
+            hash = hash(text)
             IO.write(f, text + ' ' + hash)
           end
         end
         Futex.new(path).open(false) do |f|
           if File.exist?(f)
             text, hash = IO.read(f, text).split(' ')
-            assert_equal(hash, Digest::SHA256.hexdigest(text))
+            assert_equal(hash, hash(text))
           end
         end
+      end
+    end
+  end
+
+  def test_exclusive_and_shared_locking_in_processes
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, 'g/e/f/file.txt')
+      1.times do
+        Process.fork do
+          Threads.new(20).assert(1000) do |_, r|
+            if (r % 50).zero?
+              Futex.new(path).open do |f|
+                text = SecureRandom.hex(1024)
+                hash = hash(text)
+                IO.write(f, text + ' ' + hash)
+              end
+            end
+            Futex.new(path).open(false) do |f|
+              if File.exist?(f)
+                text, hash = IO.read(f, text).split(' ')
+                assert_equal(hash, hash(text))
+              end
+            end
+          end
+          exit!(0)
+        end
+      end
+      Process.waitall.each do |p, e|
+        raise "Failed in PID ##{p}: #{e}" unless e.exitstatus.zero?
       end
     end
   end
@@ -164,5 +193,11 @@ class FutexTest < Minitest::Test
     Dir.mktmpdir do |dir|
       Futex.new(File.join(dir, 'hey.txt')).open
     end
+  end
+
+  private
+
+  def hash(text)
+    Digest::SHA256.hexdigest(text)
   end
 end
