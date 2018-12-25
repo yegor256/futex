@@ -117,7 +117,7 @@ class FutexTest < Minitest::Test
   def test_exclusive_and_shared_locking_in_processes
     Dir.mktmpdir do |dir|
       path = File.join(dir, 'g/e/f/file.txt')
-      1.times do
+      10.times do
         Process.fork do
           Threads.new(20).assert(1000) do |_, r|
             if (r % 50).zero?
@@ -143,9 +143,6 @@ class FutexTest < Minitest::Test
     end
   end
 
-  # This test doesn't work and I can't fix it. If I remove the file
-  # afterwards, the flock() logic gets broken. More about it here:
-  # https://stackoverflow.com/questions/53011200
   def test_cleans_up_the_mess
     Dir.mktmpdir do |dir|
       Futex.new(File.join(dir, 'hey.txt')).open do |f|
