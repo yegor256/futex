@@ -25,6 +25,7 @@
 require 'fileutils'
 require 'time'
 require 'singleton'
+require 'json'
 
 # Futex (file mutex) is a fine-grained mutex that uses a file, not an entire
 # thread, like <tt>Mutex</tt> does. Use it like this:
@@ -96,7 +97,7 @@ class Futex
     b = badge(exclusive)
     Thread.current.thread_variable_set(:futex_lock, @lock)
     Thread.current.thread_variable_set(:futex_badge, b)
-    FS.instance.open(@lock) do |f|
+    open_synchronized(@lock) do |f|
       cycle = 0
       loop do
         if f.flock((exclusive ? File::LOCK_EX : File::LOCK_SH) | File::LOCK_NB)
@@ -159,36 +160,44 @@ access to #{@path}, #{age(start)} already: #{IO.read(@lock)} \
     end
   end
 
-  # file open/close/unlink synchronization
-  class FS
-    include Singleton
-
-    def initialize
-      @mutex = Mutex.new
-      @files = {}
+  def open_synchronized(path)
+    path = File.absolute_path(path)
+    file = nil
+    synchronized do |ref_counts_file|
+      file = File.open(path, File::CREAT | File::RDWR)
+      ref_counts = deserialize(File.read(ref_counts_file.path))
+      ref_counts[path] = (ref_counts[path] || 0) + 1
+      File.write(ref_counts_file.path, serialize(ref_counts))
     end
-
-    def open(path)
-      path = File.absolute_path(path)
-      file = nil
-      @mutex.synchronize do
-        file = File.open(path, File::CREAT | File::RDWR)
-        ref_count = @files[path] || 0
-        @files[path] = ref_count + 1
+    yield file
+  ensure
+    synchronized do |ref_counts_file|
+      file.close
+      ref_counts = deserialize(File.read(ref_counts_file.path))
+      ref_counts[path] -= 1
+      if ref_counts[path].zero?
+        FileUtils.rm(path, force: true)
+        ref_counts.delete(path)
       end
-
-      yield file
-    ensure
-      @mutex.synchronize do
-        file.close
-        ref_count = @files[path] - 1
-        if ref_count.zero?
-          FileUtils.rm(path, force: true)
-          @files.delete(path)
-        else
-          @files[path] = ref_count
-        end
-      end
+      File.write(ref_counts_file.path, serialize(ref_counts))
     end
+  end
+
+  def synchronized
+    ref_counts_file = File.join(Dir.tmpdir, '.futex.lock')
+    File.open(ref_counts_file, File::CREAT | File::RDWR) do |f|
+      f.flock(File::LOCK_EX)
+      yield f
+    end
+  end
+
+  def serialize(data)
+    # NOTE: JSON is just an example,
+    # use whatever serialization is more appropriate here
+    data.to_json
+  end
+
+  def deserialize(data)
+    data.empty? ? {} : JSON.parse(data)
   end
 end
