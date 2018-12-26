@@ -163,37 +163,35 @@ access to #{@path}, #{age(start)} already: #{IO.read(@lock)} \
   def open_synchronized(path)
     path = File.absolute_path(path)
     file = nil
-    synchronized do |ref_counts_file|
+    synchronized do |counts|
       file = File.open(path, File::CREAT | File::RDWR)
-      ref_counts = deserialize(File.read(ref_counts_file.path))
-      ref_counts[path] = (ref_counts[path] || 0) + 1
-      File.write(ref_counts_file.path, serialize(ref_counts))
+      refs = deserialize(File.read(counts.path))
+      refs[path] = (refs[path] || 0) + 1
+      File.write(counts.path, serialize(refs))
     end
     yield file
   ensure
-    synchronized do |ref_counts_file|
+    synchronized do |counts|
       file.close
-      ref_counts = deserialize(File.read(ref_counts_file.path))
-      ref_counts[path] -= 1
-      if ref_counts[path].zero?
+      refs = deserialize(File.read(counts.path))
+      refs[path] -= 1
+      if refs[path].zero?
         FileUtils.rm(path, force: true)
-        ref_counts.delete(path)
+        refs.delete(path)
       end
-      File.write(ref_counts_file.path, serialize(ref_counts))
+      File.write(counts.path, serialize(refs))
     end
   end
 
   def synchronized
-    ref_counts_file = File.join(Dir.tmpdir, '.futex.lock')
-    File.open(ref_counts_file, File::CREAT | File::RDWR) do |f|
+    counts = File.join(Dir.tmpdir, 'futex.lock')
+    File.open(counts, File::CREAT | File::RDWR) do |f|
       f.flock(File::LOCK_EX)
       yield f
     end
   end
 
   def serialize(data)
-    # NOTE: JSON is just an example,
-    # use whatever serialization is more appropriate here
     data.to_json
   end
 
