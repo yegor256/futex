@@ -97,7 +97,7 @@ class Futex
     b = badge(exclusive)
     Thread.current.thread_variable_set(:futex_lock, @lock)
     Thread.current.thread_variable_set(:futex_badge, b)
-    open_synchronized do |f|
+    open_synchronized(@lock) do |f|
       cycle = 0
       loop do
         if f.flock((exclusive ? File::LOCK_EX : File::LOCK_SH) | File::LOCK_NB)
@@ -160,33 +160,42 @@ access to #{@path}, #{age(start)} already: #{IO.read(@lock)} \
     end
   end
 
-  def open_synchronized
-    path = File.absolute_path(@lock)
+  def open_synchronized(path)
+    path = File.absolute_path(path)
     file = nil
     synchronized do |counts|
       file = File.open(path, File::CREAT | File::RDWR)
-      refs = File.read(counts.path).to_i + 1
-      File.write(counts.path, refs.to_s)
+      refs = deserialize(File.read(counts.path))
+      refs[path] = (refs[path] || 0) + 1
+      File.write(counts.path, serialize(refs))
     end
     yield file
   ensure
     synchronized do |counts|
       file.close
-      refs = File.read(counts.path).to_i - 1
-      if refs.zero?
+      refs = deserialize(File.read(counts.path))
+      refs[path] -= 1
+      if refs[path].zero?
         FileUtils.rm(path, force: true)
-        FileUtils.rm(counts.path, force: true)
-      else
-        File.write(counts.path, refs.to_s)
+        refs.delete(path)
       end
+      File.write(counts.path, serialize(refs))
     end
   end
 
   def synchronized
-    counts = @lock + '-refs'
+    counts = File.join(Dir.tmpdir, 'futex.lock')
     File.open(counts, File::CREAT | File::RDWR) do |f|
       f.flock(File::LOCK_EX)
       yield f
     end
+  end
+
+  def serialize(data)
+    data.to_json
+  end
+
+  def deserialize(data)
+    data.empty? ? {} : JSON.parse(data)
   end
 end
