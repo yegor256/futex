@@ -67,6 +67,9 @@ class Futex
     end
   end
 
+  # Global file for locks counting
+  COUNTS = File.join(Dir.tmpdir, 'futex.lock').freeze
+
   # Creates a new instance of the class.
   def initialize(path, log: STDOUT, timeout: 16, sleep: 0.005,
     lock: path + '.lock', logging: false)
@@ -184,8 +187,7 @@ access to #{@path}, #{age(start)} already: #{IO.read(@lock)} \
   end
 
   def synchronized
-    counts = File.join(Dir.tmpdir, 'futex.lock')
-    File.open(counts, File::CREAT | File::RDWR) do |f|
+    File.open(COUNTS, File::CREAT | File::RDWR) do |f|
       f.flock(File::LOCK_EX)
       yield f
     end
@@ -197,5 +199,7 @@ access to #{@path}, #{age(start)} already: #{IO.read(@lock)} \
 
   def deserialize(data)
     data.empty? ? {} : JSON.parse(data)
+  rescue JSON::ParserError
+    {}
   end
 end

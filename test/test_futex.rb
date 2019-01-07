@@ -191,6 +191,15 @@ class FutexTest < Minitest::Test
     end
   end
 
+  def test_works_with_broken_counts_file
+    IO.write(Futex::COUNTS, 'fds')
+    Dir.mktmpdir do |dir|
+      Futex.new(File.join(dir, 'hey.txt')).open do |f|
+        assert(!File.exist?(f))
+      end
+    end
+  end
+
   private
 
   def hash(text)
