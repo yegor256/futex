@@ -177,7 +177,7 @@ access to #{@path}, #{age(start)} already: #{IO.read(@lock)} \
     synchronized do |counts|
       file&.close
       refs = deserialize(IO.read(counts.path))
-      refs[path] = (refs[path] || 0) - 1
+      refs[path] = (refs[path] || 1) - 1
       if refs[path].zero?
         FileUtils.rm(path, force: true)
         refs.delete(path)
