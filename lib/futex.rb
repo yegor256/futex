@@ -124,7 +124,7 @@ access to #{@path}, #{age(start)} already: #{IO.read(@lock)} \
       end
       debug("Locked by #{b} in #{age(start)}, #{prefix}exclusive: \
 #{@path} (attempt no.#{cycle})")
-      File.write(@lock, b)
+      IO.write(@lock, b)
       acq = Time.now
       res = block_given? ? yield(@path) : nil
       debug("Unlocked by #{b} in #{age(acq)}, #{prefix}exclusive: #{@path}")
@@ -168,21 +168,21 @@ access to #{@path}, #{age(start)} already: #{IO.read(@lock)} \
     file = nil
     synchronized do |counts|
       file = File.open(path, File::CREAT | File::RDWR)
-      refs = deserialize(File.read(counts.path))
+      refs = deserialize(IO.read(counts.path))
       refs[path] = (refs[path] || 0) + 1
-      File.write(counts.path, serialize(refs))
+      IO.write(counts.path, serialize(refs))
     end
     yield file
   ensure
     synchronized do |counts|
-      file.close
-      refs = deserialize(File.read(counts.path))
+      file&.close
+      refs = deserialize(IO.read(counts.path))
       refs[path] -= 1
       if refs[path].zero?
         FileUtils.rm(path, force: true)
         refs.delete(path)
       end
-      File.write(counts.path, serialize(refs))
+      IO.write(counts.path, serialize(refs))
     end
   end
 
