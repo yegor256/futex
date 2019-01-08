@@ -82,14 +82,14 @@ class FutexTest < Minitest::Test
           sleep 10
         end
       end
-      sleep 0.1
+      sleep 2
       ex = assert_raises(Futex::CantLock) do
         Futex.new(path, timeout: 0.1).open do |f|
           # Will never reach this point
         end
       end
       assert(ex.message.include?('can\'t get exclusive access to the file'), ex)
-      assert(!ex.start.nil?)
+      assert(ex.start < Time.now - 1)
     end
   end
 
