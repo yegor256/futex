@@ -79,7 +79,7 @@ If it's clean and you don't see any error messages, submit your pull request.
 
 (The MIT License)
 
-Copyright (c) 2018 Yegor Bugayenko
+Copyright (c) 2018-2019 Yegor Bugayenko
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the 'Software'), to deal
