@@ -56,10 +56,10 @@ constructor of the `Futex` class, including:
   * `logging`: set it to `true` if you want to see logs;
 
   * `timeout`: the number of seconds to wait for the lock availability
-    (an exception is raised when the wait is expired);
+    (`Futex::CantLock` exception is raised when the wait is expired);
 
   * `sleep`: the number of seconds to wait between attempts to acquire
-    the lock file (the smaller the number, the more reactive is the software,
+    the lock file (the smaller the number, the more responsive is the software,
     but the higher the load for the file system and the CPU);
 
   * `lock`: the absolute path of the lock file;
