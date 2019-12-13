@@ -28,7 +28,7 @@ Then, use it like this:
 
 ```ruby
 require 'futex'
-Futex.new('/tmp/my-file.txt').open |f|
+Futex.new('/tmp/my-file.txt').open do |f|
   IO.write(f, 'Hello, world!')
 end
 ```
@@ -42,7 +42,7 @@ a non-exclusive/shared access to it, by providing `false` to the method
 
 ```ruby
 require 'futex'
-Futex.new('/tmp/my-file.txt').open(false) |f|
+Futex.new('/tmp/my-file.txt').open(false) do |f|
   IO.read(f)
 end
 ```
