@@ -1,7 +1,6 @@
 AllCops:
   DisplayCopNames: true
   TargetRubyVersion: 2.3
-
 Layout/EmptyLineAfterGuardClause:
   Enabled: false
 Layout/MultilineMethodCallIndentation:
@@ -22,3 +21,7 @@ Metrics/ParameterLists:
   Max: 10
 Layout/AlignParameters:
   Enabled: false
+require:
+  - rubocop-rake
+  - rubocop-minitest
+  - rubocop-performance
