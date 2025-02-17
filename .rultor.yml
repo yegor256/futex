@@ -5,6 +5,7 @@ install: |-
   export GEM_PATH=$GEM_HOME:$GEM_PATH
   bundle install --no-color
 release:
+  pre: false
   script: |-
     bundle exec rake
     rm -rf *.gem

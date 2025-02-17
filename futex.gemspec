@@ -2,7 +2,7 @@
 
 # (The MIT License)
 #
-# Copyright (c) 2018-2020 Yegor Bugayenko
+# Copyright (c) 2018-2025 Yegor Bugayenko
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the 'Software'), to deal
@@ -42,11 +42,4 @@ Gem::Specification.new do |s|
   s.test_files = s.files.grep(%r{^(test)/})
   s.rdoc_options = ['--charset=UTF-8']
   s.extra_rdoc_files = ['README.md']
-  s.add_development_dependency 'minitest', '5.11.3'
-  s.add_development_dependency 'openssl', '2.1.2'
-  s.add_development_dependency 'rake', '12.3.1'
-  s.add_development_dependency 'rdoc', '4.3.0'
-  s.add_development_dependency 'rubocop', '0.62.0'
-  s.add_development_dependency 'rubocop-rspec', '1.31.0'
-  s.add_development_dependency 'threads', '0.3.0'
 end
