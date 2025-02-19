@@ -13,5 +13,5 @@ gem 'rubocop', '0.62.0', require: false
 gem 'rubocop-minitest', '>0', require: false
 gem 'rubocop-performance', '>0', require: false
 gem 'rubocop-rake', '>0', require: false
-gem 'rubocop-rspec', '1.31.0', require: false
+gem 'rubocop-rspec', '1.44.1', require: false
 gem 'threads', '>0', require: false
