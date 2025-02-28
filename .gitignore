@@ -1,7 +1,7 @@
-Gemfile.lock
 *.gem
-.bundle/
 .DS_Store
-rdoc/
+.bundle/
 .idea/
+Gemfile.lock
+rdoc/
 vendor/
