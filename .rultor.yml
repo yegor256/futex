@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: Copyright (c) 2019 Yegor Bugayenko
+# SPDX-License-Identifier: MIT
+
 assets:
   rubygems.yml: yegor256/home#assets/rubygems.yml
 install: |-

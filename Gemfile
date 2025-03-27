@@ -6,12 +6,12 @@
 source 'https://rubygems.org'
 gemspec
 
-gem 'minitest', '5.11.3', require: false
+gem 'minitest', '~>5.11', require: false
 gem 'rake', '>0', require: false
-gem 'rdoc', '4.3.0', require: false
-gem 'rubocop', '0.62.0', require: false
+gem 'rdoc', '~>4.3', require: false
+gem 'rubocop', '~>0.62', require: false
 gem 'rubocop-minitest', '>0', require: false
 gem 'rubocop-performance', '>0', require: false
 gem 'rubocop-rake', '>0', require: false
-gem 'rubocop-rspec', '1.31.0', require: false
+gem 'rubocop-rspec', '~>1.31', require: false
 gem 'threads', '>0', require: false
