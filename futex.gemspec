@@ -18,7 +18,7 @@ Gem::Specification.new do |s|
   s.description = 'Ruby Gem for file-based locking'
   s.authors = ['Yegor Bugayenko']
   s.email = 'yegor256@gmail.com'
-  s.homepage = 'http://github.com/yegor256/futex'
+  s.homepage = 'https://github.com/yegor256/futex'
   s.files = `git ls-files`.split($RS)
   s.test_files = s.files.grep(%r{^(test)/})
   s.rdoc_options = ['--charset=UTF-8']
