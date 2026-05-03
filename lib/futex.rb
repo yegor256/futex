@@ -12,11 +12,11 @@ require 'json'
 # thread, like <tt>Mutex</tt> does. Use it like this:
 #
 #  require 'futex'
-#  Futex.new('/tmp/my-file.txt').open |f|
+#  Futex.new('/tmp/my-file.txt').open do |f|
 #    IO.write(f, 'Hello, world!')
 #  end
 #
-# The file <tt>/tmp/my-file.txt.lock<tt> will be created and
+# The file <tt>/tmp/my-file.txt.lock</tt> will be created and
 # used as an entrance lock. If the file is already locked by another thread
 # or another process, exception <tt>Futex::CantLock</tt> will be raised.
 #
@@ -25,7 +25,7 @@ require 'json'
 # the method <tt>open()</tt>:
 #
 #  require 'futex'
-#  Futex.new('/tmp/my-file.txt').open(false) |f|
+#  Futex.new('/tmp/my-file.txt').open(false) do |f|
 #    IO.read(f)
 #  end
 #
@@ -70,7 +70,7 @@ class Futex
   # provided none of them do the writing. In that case you should call this
   # method <tt>open()</tt> with <tt>false</tt> first argument, which will mean
   # "shared" access. Many threads and processes may have shared access to the
-  # same lock file, but they all will stop and wait if one of them will require
+  # same lock file, but they all will stop and wait if one of them requires
   # an "exclusive" access. This mechanism is inherited from POSIX, read about
   # it <a href="http://man7.org/linux/man-pages/man2/flock.2.html">here</a>.
   def open(exclusive = true)
