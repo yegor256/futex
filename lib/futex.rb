@@ -4,9 +4,9 @@
 # SPDX-License-Identifier: MIT
 
 require 'fileutils'
-require 'time'
-require 'singleton'
 require 'json'
+require 'singleton'
+require 'time'
 
 # Futex (file mutex) is a fine-grained mutex that uses a file, not an entire
 # thread, like <tt>Mutex</tt> does. Use it like this:
@@ -42,18 +42,20 @@ class Futex
   # when we started to try to acquire lock.
   class CantLock < StandardError
     attr_reader :start
+
     def initialize(msg, start)
       @start = start
       super(msg)
     end
   end
 
-  # Global file for locks counting
   COUNTS = File.join(Dir.tmpdir, 'futex.lock').freeze
 
   # Creates a new instance of the class.
-  def initialize(path, log: STDOUT, timeout: 16, sleep: 0.005,
-    lock: path + '.lock', logging: false)
+  def initialize(
+    path, log: $stdout, timeout: 16, sleep: 0.005,
+    lock: "#{path}.lock", logging: false
+  )
     @path = path
     @log = log
     @logging = logging
@@ -75,13 +77,13 @@ class Futex
   # it <a href="http://man7.org/linux/man-pages/man2/flock.2.html">here</a>.
   def open(exclusive = true)
     FileUtils.mkdir_p(File.dirname(@lock))
-    step = (1 / @sleep).to_i
+    step = Integer(1 / @sleep)
     start = Time.now
     prefix = exclusive ? '' : 'non-'
     b = badge(exclusive)
     Thread.current.thread_variable_set(:futex_lock, @lock)
     Thread.current.thread_variable_set(:futex_badge, b)
-    open_synchronized(@lock) do |f|
+    acquire(@lock) do |f|
       cycle = 0
       loop do
         if f.flock((exclusive ? File::LOCK_EX : File::LOCK_SH) | File::LOCK_NB)
@@ -94,23 +96,26 @@ class Futex
         Thread.current.thread_variable_set(:futex_cycle, cycle)
         Thread.current.thread_variable_set(:futex_time, Time.now - start)
         if Time.now - start > @timeout
-          raise CantLock.new("#{b} can't get #{prefix}exclusive access \
-to the file #{@path} because of the lock at #{@lock}, after #{age(start)} \
-of waiting: #{IO.read(@lock)} (modified #{age(File.mtime(@lock))} ago)",
-          File.mtime(@lock))
+          raise(
+            CantLock.new(
+              "#{b} can't get #{prefix}exclusive access " \
+              "to the file #{@path} because of the lock at #{@lock}, after #{age(start)} " \
+              "of waiting: #{File.read(@lock)} (modified #{age(File.mtime(@lock))} ago)",
+              File.mtime(@lock)
+            )
+          )
         end
         next unless (cycle % step).zero? && Time.now - start > @timeout / 2
-        debug("#{b} still waiting for #{prefix}exclusive \
-access to #{@path}, #{age(start)} already: #{IO.read(@lock)} \
-(modified #{age(File.mtime(@lock))} ago)")
+        debug(
+          "#{b} still waiting for #{prefix}exclusive " \
+          "access to #{@path}, #{age(start)} already: #{File.read(@lock)} " \
+          "(modified #{age(File.mtime(@lock))} ago)"
+        )
       end
-      debug("Locked by #{b} in #{age(start)}, #{prefix}exclusive: \
-#{@path} (attempt no.#{cycle})")
-      IO.write(@lock, b)
-      acq = Time.now
-      res = block_given? ? yield(@path) : nil
-      debug("Unlocked by #{b} in #{age(acq)}, #{prefix}exclusive: #{@path}")
-      res
+      debug("Locked by #{b} in #{age(start)}, #{prefix}exclusive: #{@path} (attempt no.#{cycle})")
+      File.write(@lock, b)
+      debug("Unlocked by #{b} in #{age(Time.now)}, #{prefix}exclusive: #{@path}")
+      (block_given? ? yield(@path) : nil)
     end
   ensure
     Thread.current.thread_variable_set(:futex_cycle, nil)
@@ -145,33 +150,33 @@ access to #{@path}, #{age(start)} already: #{IO.read(@lock)} \
     end
   end
 
-  def open_synchronized(path)
+  def acquire(path)
     path = File.absolute_path(path)
     file = nil
     synchronized do |counts|
       file = File.open(path, File::CREAT | File::RDWR)
-      refs = deserialize(IO.read(counts.path))
+      refs = deserialize(File.read(counts.path))
       refs[path] = (refs[path] || 0) + 1
-      IO.write(counts.path, serialize(refs))
+      File.write(counts.path, serialize(refs))
     end
-    yield file
+    yield(file)
   ensure
     synchronized do |counts|
       file&.close
-      refs = deserialize(IO.read(counts.path))
+      refs = deserialize(File.read(counts.path))
       refs[path] = (refs[path] || 1) - 1
       if refs[path].zero?
         FileUtils.rm(path, force: true)
         refs.delete(path)
       end
-      IO.write(counts.path, serialize(refs))
+      File.write(counts.path, serialize(refs))
     end
   end
 
   def synchronized
     File.open(COUNTS, File::CREAT | File::RDWR) do |f|
       f.flock(File::LOCK_EX)
-      yield f
+      yield(f)
     end
   end
 

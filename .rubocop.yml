@@ -3,6 +3,7 @@
 
 AllCops:
   DisplayCopNames: true
+  NewCops: enable
   TargetRubyVersion: 2.3
 Layout/EmptyLineAfterGuardClause:
   Enabled: false
@@ -11,7 +12,7 @@ Layout/MultilineMethodCallIndentation:
 Metrics/AbcSize:
   Max: 65
 Metrics/BlockLength:
-  Max: 30
+  Max: 35
 Metrics/MethodLength:
   Max: 50
 Metrics/ClassLength:
@@ -22,9 +23,21 @@ Metrics/PerceivedComplexity:
   Max: 10
 Metrics/ParameterLists:
   Max: 10
-Layout/AlignParameters:
+Layout/ParameterAlignment:
   Enabled: false
-require:
+Elegant/ClassInModule:
+  Exclude:
+    - 'lib/**/*'
+    - '**/test_*.rb'
+    - '**/*Test.rb'
+Style/OptionalBooleanParameter:
+  Enabled: false
+Style/AutoResourceCleanup:
+  Enabled: false
+Style/FileOpen:
+  Enabled: false
+plugins:
   - rubocop-rake
   - rubocop-minitest
   - rubocop-performance
+  - rubocop-elegant

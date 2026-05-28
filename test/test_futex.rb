@@ -3,11 +3,11 @@
 # SPDX-FileCopyrightText: Copyright (c) 2018-2026 Yegor Bugayenko
 # SPDX-License-Identifier: MIT
 
-require 'minitest/autorun'
-require 'tmpdir'
-require 'threads'
 require 'digest'
+require 'minitest/autorun'
 require 'securerandom'
+require 'threads'
+require 'tmpdir'
 require_relative '../lib/futex'
 
 # Futex test.
@@ -21,8 +21,8 @@ class FutexTest < Minitest::Test
       Threads.new(2).assert do |_, r|
         Futex.new(path, logging: true).open do |f|
           text = "op no.#{r}"
-          IO.write(f, text)
-          assert_equal(text, IO.read(f))
+          File.write(f, text)
+          assert_equal(text, File.read(f))
         end
       end
     end
@@ -32,10 +32,10 @@ class FutexTest < Minitest::Test
     Dir.mktmpdir do |dir|
       path = File.join(dir, 'file.txt')
       text = 'Hello, world!'
-      IO.write(path, text)
+      File.write(path, text)
       Threads.new(2).assert do
         Futex.new(path).open(false) do |f|
-          assert_equal(text, IO.read(f))
+          assert_equal(text, File.read(f))
         end
       end
     end
@@ -47,9 +47,9 @@ class FutexTest < Minitest::Test
       Threads.new(20).assert(200) do |_, r|
         Futex.new(path).open do |f|
           text = "op no.#{r}"
-          IO.write(f, text)
-          sleep 0.01
-          assert_equal(text, IO.read(f))
+          File.write(f, text)
+          sleep(0.01)
+          assert_equal(text, File.read(f))
         end
       end
     end
@@ -60,17 +60,18 @@ class FutexTest < Minitest::Test
       path = File.join(dir, 'the/simple/file.txt')
       Thread.start do
         Futex.new(path).open do
-          sleep 10
+          sleep(10)
         end
       end
-      sleep 2
-      ex = assert_raises(Futex::CantLock) do
-        Futex.new(path, timeout: 0.1).open do |f|
-          # Will never reach this point
+      sleep(2)
+      ex =
+        assert_raises(Futex::CantLock) do
+          Futex.new(path, timeout: 0.1).open do |_f|
+            nil
+          end
         end
-      end
-      assert(ex.message.include?('can\'t get exclusive access to the file'), ex)
-      assert(ex.start < Time.now - 1)
+      assert_includes(ex.message, "can't get exclusive access to the file", ex)
+      assert_operator(ex.start, :<, Time.now - 1)
     end
   end
 
@@ -82,12 +83,12 @@ class FutexTest < Minitest::Test
           Futex.new(path).open do |f|
             text = SecureRandom.hex(1024)
             hash = hash(text)
-            IO.write(f, text + ' ' + hash)
+            File.write(f, "#{text} #{hash}")
           end
         end
         Futex.new(path).open(false) do |f|
           if File.exist?(f)
-            text, hash = IO.read(f, text).split(' ')
+            text, hash = File.read(f, text).split
             assert_equal(hash, hash(text))
           end
         end
@@ -105,12 +106,12 @@ class FutexTest < Minitest::Test
               Futex.new(path).open do |f|
                 text = SecureRandom.hex(1024)
                 hash = hash(text)
-                IO.write(f, text + ' ' + hash)
+                File.write(f, "#{text} #{hash}")
               end
             end
             Futex.new(path).open(false) do |f|
               if File.exist?(f)
-                text, hash = IO.read(f, text).split(' ')
+                text, hash = File.read(f, text).split
                 assert_equal(hash, hash(text))
               end
             end
@@ -119,7 +120,7 @@ class FutexTest < Minitest::Test
         end
       end
       Process.waitall.each do |p, e|
-        raise "Failed in PID ##{p}: #{e}" unless e.exitstatus.zero?
+        raise(StandardError, "Failed in PID ##{p}: #{e}") unless e.exitstatus.zero?
       end
     end
   end
@@ -127,7 +128,7 @@ class FutexTest < Minitest::Test
   def test_cleans_up_the_mess
     Dir.mktmpdir do |dir|
       Futex.new(File.join(dir, 'hey.txt')).open do |f|
-        IO.write(f, 'hey')
+        File.write(f, 'hey')
         FileUtils.rm(f)
       end
       assert_equal(2, Dir.new(dir).count)
@@ -137,31 +138,26 @@ class FutexTest < Minitest::Test
   def test_sets_thread_vars
     Dir.mktmpdir do |dir|
       Futex.new(File.join(dir, 'hey.txt')).open do |f|
-        assert_equal(
-          "#{f}.lock",
-          Thread.current.thread_variable_get(:futex_lock)
-        )
-        assert(
-          Thread.current.thread_variable_get(:futex_badge).include?('-ex/nil')
-        )
+        assert_equal("#{f}.lock", Thread.current.thread_variable_get(:futex_lock))
+        assert_includes(Thread.current.thread_variable_get(:futex_badge), '-ex/nil')
       end
     end
   end
 
   def test_removes_thread_vars
     Dir.mktmpdir do |dir|
-      Futex.new(File.join(dir, 'hey.txt')).open do |f|
-        # nothing
+      Futex.new(File.join(dir, 'hey.txt')).open do |_f|
+        nil
       end
-      assert(Thread.current.thread_variable_get(:futex_lock).nil?)
+      assert_nil(Thread.current.thread_variable_get(:futex_lock))
     end
   end
 
   def test_saves_calling_file_name_in_lock
     Dir.mktmpdir do |dir|
       Futex.new(File.join(dir, 'hey.txt')).open do |f|
-        badge = IO.read("#{f}.lock")
-        assert(badge.include?('test/test_futex.rb:'), badge)
+        badge = File.read("#{f}.lock")
+        assert_includes(badge, 'test/test_futex.rb:', badge)
       end
     end
   end
@@ -173,10 +169,10 @@ class FutexTest < Minitest::Test
   end
 
   def test_works_with_broken_counts_file
-    IO.write(Futex::COUNTS, 'fds')
+    File.write(Futex::COUNTS, 'fds')
     Dir.mktmpdir do |dir|
       Futex.new(File.join(dir, 'hey.txt')).open do |f|
-        assert(!File.exist?(f))
+        refute_path_exists(f)
       end
     end
   end

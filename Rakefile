@@ -1,11 +1,11 @@
 # frozen_string_literal: true
 
+require 'rake'
+require 'rake/clean'
 # SPDX-FileCopyrightText: Copyright (c) 2018-2026 Yegor Bugayenko
 # SPDX-License-Identifier: MIT
 
 require 'rubygems'
-require 'rake'
-require 'rake/clean'
 
 CLEAN = FileList['coverage']
 
