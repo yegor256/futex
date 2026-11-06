@@ -78,7 +78,7 @@ class Futex
   def open(exclusive = true)
     FileUtils.mkdir_p(File.dirname(@lock))
     step = Integer(1 / @sleep)
-    start = Time.now
+    start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     prefix = exclusive ? '' : 'non-'
     b = badge(exclusive)
     Thread.current.thread_variable_set(:futex_lock, @lock)
@@ -93,9 +93,10 @@ class Futex
         end
         sleep(@sleep)
         cycle += 1
+        waited = elapsed(start)
         Thread.current.thread_variable_set(:futex_cycle, cycle)
-        Thread.current.thread_variable_set(:futex_time, Time.now - start)
-        if Time.now - start > @timeout
+        Thread.current.thread_variable_set(:futex_time, waited)
+        if waited > @timeout
           raise(
             CantLock.new(
               "#{b} can't get #{prefix}exclusive access " \
@@ -105,7 +106,7 @@ class Futex
             )
           )
         end
-        next unless (cycle % step).zero? && Time.now - start > @timeout / 2
+        next unless (cycle % step).zero? && waited > @timeout / 2
         debug(
           "#{b} still waiting for #{prefix}exclusive " \
           "access to #{@path}, #{age(start)} already: #{File.read(@lock)} " \
@@ -133,12 +134,16 @@ class Futex
   end
 
   def age(time)
-    sec = Time.now - time
+    sec = time.is_a?(Time) ? Time.now - time : elapsed(time)
     return "#{(sec * 1_000_000).round}μs" if sec < 0.001
     return "#{(sec * 1000).round}ms" if sec < 1
     return "#{sec.round(2)}s" if sec < 60
     return "#{(sec / 60).round}m" if sec < 60 * 60
     "#{(sec / 3600).round}h"
+  end
+
+  def elapsed(since)
+    Process.clock_gettime(Process::CLOCK_MONOTONIC) - since
   end
 
   def debug(msg)
