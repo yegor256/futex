@@ -66,9 +66,7 @@ class FutexTest < Minitest::Test
       sleep(2)
       ex =
         assert_raises(Futex::CantLock) do
-          Futex.new(path, timeout: 0.1).open do |_f|
-            nil
-          end
+          Futex.new(path, timeout: 0.1).open
         end
       assert_includes(ex.message, "can't get exclusive access to the file", ex)
       assert_operator(ex.start, :<, Time.now - 1)
@@ -146,9 +144,7 @@ class FutexTest < Minitest::Test
 
   def test_removes_thread_vars
     Dir.mktmpdir do |dir|
-      Futex.new(File.join(dir, 'hey.txt')).open do |_f|
-        nil
-      end
+      Futex.new(File.join(dir, 'hey.txt')).open
       assert_nil(Thread.current.thread_variable_get(:futex_lock))
     end
   end

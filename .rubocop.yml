@@ -37,6 +37,7 @@ Style/AutoResourceCleanup:
 Style/FileOpen:
   Enabled: false
 plugins:
+  - rubocop-rspec
   - rubocop-rake
   - rubocop-minitest
   - rubocop-performance

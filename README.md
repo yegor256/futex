@@ -4,7 +4,7 @@
 [![DevOps By Rultor.com](https://www.rultor.com/b/yegor256/futex)](https://www.rultor.com/p/yegor256/futex)
 [![We recommend RubyMine](https://www.elegantobjects.org/rubymine.svg)](https://www.jetbrains.com/ruby/)
 
-[![Build Status](https://travis-ci.org/yegor256/futex.svg)](https://travis-ci.org/yegor256/futex)
+[![Ruby](https://github.com/yegor256/futex/actions/workflows/ruby.yml/badge.svg)](https://github.com/yegor256/futex/actions/workflows/ruby.yml)
 [![Build status](https://ci.appveyor.com/api/projects/status/po1mn8ca96jk0llr?svg=true)](https://ci.appveyor.com/project/yegor256/futex)
 [![Gem Version](https://badge.fury.io/rb/futex.svg)](https://badge.fury.io/rb/futex)
 [![Maintainability](https://api.codeclimate.com/v1/badges/5528e182bb5e4a2ecc1f/maintainability)](https://codeclimate.com/github/yegor256/futex/maintainability)
@@ -70,7 +70,8 @@ That's it.
 
 Read [these guidelines](https://www.yegor256.com/2014/04/15/github-guidelines.html).
 Make sure your build is green before you contribute
-your pull request. You will need to have [Ruby](https://www.ruby-lang.org/en/) 2.3+ and
+your pull request. For development, you will need
+[Ruby](https://www.ruby-lang.org/en/) 3.3+ and
 [Bundler](https://bundler.io/) installed. Then:
 
 ```
