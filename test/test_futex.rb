@@ -69,7 +69,25 @@ class FutexTest < Minitest::Test
           Futex.new(path, timeout: 0.1).open
         end
       assert_includes(ex.message, "can't get exclusive access to the file", ex)
-      assert_operator(ex.start, :<, Time.now - 1)
+      assert_operator(ex.start, :<, Time.now)
+    end
+  end
+
+  def test_cant_lock_start_is_attempt_start
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, 'the/simple/file.txt')
+      Thread.start do
+        Futex.new(path).open do
+          sleep(5)
+        end
+      end
+      sleep(2)
+      ex =
+        assert_raises(Futex::CantLock) do
+          Futex.new(path, timeout: 0.5).open
+        end
+      assert_operator(ex.start, :>, Time.now - 1)
+      assert_operator(ex.start, :<, Time.now)
     end
   end
 

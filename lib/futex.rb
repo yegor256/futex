@@ -101,7 +101,7 @@ class Futex
               "#{b} can't get #{prefix}exclusive access " \
               "to the file #{@path} because of the lock at #{@lock}, after #{age(start)} " \
               "of waiting: #{File.read(@lock)} (modified #{age(File.mtime(@lock))} ago)",
-              File.mtime(@lock)
+              start
             )
           )
         end
