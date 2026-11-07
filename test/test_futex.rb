@@ -173,6 +173,43 @@ class FutexTest < Minitest::Test
     end
   end
 
+  def test_keeps_held_lock_when_open_fails
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, 'file.txt')
+      lock = "#{path}.lock"
+      locked = Queue.new
+      release = Queue.new
+      done = Queue.new
+      ino = Queue.new
+      Thread.start do
+        Futex.new(path).open do
+          locked << true
+          release.pop
+        end
+        done << true
+      end
+      locked.pop
+      ino << File.stat(lock).ino
+      stubber =
+        Module.new do
+          define_method(:open) do |*args, **kwargs, &blk|
+            raise(Errno::EMFILE) if args.first.to_s == lock
+            super(*args, **kwargs, &blk)
+          end
+        end
+      begin
+        File.singleton_class.prepend(stubber)
+        assert_raises(Errno::EMFILE) { Futex.new(path, timeout: 0.1).open }
+      ensure
+        stubber.remove_method(:open)
+      end
+      assert_equal([ino.pop, 1], [File.stat(lock).ino, JSON.parse(File.read(Futex::COUNTS))[File.absolute_path(lock)]])
+      assert_raises(Futex::CantLock) { Futex.new(path, timeout: 0.1).open }
+      release << true
+      done.pop
+    end
+  end
+
   private
 
   def hash(text)
