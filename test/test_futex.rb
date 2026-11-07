@@ -73,6 +73,39 @@ class FutexTest < Minitest::Test
     end
   end
 
+  def test_times_out_using_monotonic_clock
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, 'a/b/c/file.txt')
+      Futex.new(path).open do
+        real = Process.method(:clock_gettime)
+        origin = real.call(Process::CLOCK_MONOTONIC)
+        reads = 0
+        Process.define_singleton_method(:clock_gettime) do |*_args|
+          reads += 1
+          reads == 1 ? origin : origin + 100
+        end
+        started = nil
+        ex = nil
+        begin
+          started = Time.now
+          ex = Thread.new do
+            begin
+              Futex.new(path, timeout: 16).open
+            rescue Futex::CantLock => e
+              e
+            end
+          end.value
+        ensure
+          Process.define_singleton_method(:clock_gettime, real)
+        end
+        took = Time.now - started
+        assert_instance_of(Futex::CantLock, ex)
+        assert_includes(ex.message, "can't get exclusive access", ex)
+        assert_operator(took, :<, 8, "waited #{took.round(2)}s despite the monotonic clock jump")
+      end
+    end
+  end
+
   def test_exclusive_and_shared_locking
     Dir.mktmpdir do |dir|
       path = File.join(dir, 'g/e/f/file.txt')
