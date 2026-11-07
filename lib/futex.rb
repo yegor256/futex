@@ -153,23 +153,27 @@ class Futex
   def acquire(path)
     path = File.absolute_path(path)
     file = nil
+    refd = false
     synchronized do |counts|
       file = File.open(path, File::CREAT | File::RDWR)
       refs = deserialize(File.read(counts.path))
       refs[path] = (refs[path] || 0) + 1
       File.write(counts.path, serialize(refs))
     end
+    refd = true
     yield(file)
   ensure
-    synchronized do |counts|
-      file&.close
-      refs = deserialize(File.read(counts.path))
-      refs[path] = (refs[path] || 1) - 1
-      if refs[path].zero?
-        FileUtils.rm(path, force: true)
-        refs.delete(path)
+    file&.close
+    if refd
+      synchronized do |counts|
+        refs = deserialize(File.read(counts.path))
+        refs[path] = (refs[path] || 1) - 1
+        if refs[path].zero?
+          FileUtils.rm(path, force: true)
+          refs.delete(path)
+        end
+        File.write(counts.path, serialize(refs))
       end
-      File.write(counts.path, serialize(refs))
     end
   end
 
