@@ -73,6 +73,51 @@ class FutexTest < Minitest::Test
     end
   end
 
+  def test_waits_with_integer_sleep_above_one_second
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, 'a/b/file.txt')
+      Thread.start do
+        Futex.new(path).open do
+          sleep(2)
+        end
+      end
+      sleep(1)
+      Futex.new(path, sleep: 2, timeout: 10).open do |f|
+        File.write(f, 'done')
+      end
+      assert_equal('done', File.read(path))
+    end
+  end
+
+  def test_raises_if_cant_lock_with_big_sleep
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, 'a/b/file.txt')
+      Thread.start do
+        Futex.new(path).open do
+          sleep(10)
+        end
+      end
+      sleep(2)
+      ex =
+        assert_raises(Futex::CantLock) do
+          Futex.new(path, sleep: 1.5, timeout: 2).open
+        end
+      assert_includes(ex.message, "can't get exclusive access to the file", ex)
+    end
+  end
+
+  def test_rejects_non_positive_sleep
+    Dir.mktmpdir do |dir|
+      [0, -1, -0.5].each do |s|
+        ex =
+          assert_raises(ArgumentError) do
+            Futex.new(File.join(dir, 'file.txt'), sleep: s)
+          end
+        assert_includes(ex.message, "sleep must be a positive number, but #{s.inspect} given", ex)
+      end
+    end
+  end
+
   def test_exclusive_and_shared_locking
     Dir.mktmpdir do |dir|
       path = File.join(dir, 'g/e/f/file.txt')
