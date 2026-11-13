@@ -56,6 +56,9 @@ class Futex
     path, log: $stdout, timeout: 16, sleep: 0.005,
     lock: "#{path}.lock", logging: false
   )
+    unless sleep.is_a?(Numeric) && sleep.positive?
+      raise(ArgumentError, "sleep must be a positive number, but #{sleep.inspect} given")
+    end
     @path = path
     @log = log
     @logging = logging
@@ -77,7 +80,7 @@ class Futex
   # it <a href="http://man7.org/linux/man-pages/man2/flock.2.html">here</a>.
   def open(exclusive = true)
     FileUtils.mkdir_p(File.dirname(@lock))
-    step = Integer(1 / @sleep)
+    step = [Integer(1 / Float(@sleep)), 1].max
     start = Time.now
     prefix = exclusive ? '' : 'non-'
     b = badge(exclusive)
