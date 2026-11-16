@@ -38,8 +38,9 @@ require 'time'
 class Futex
   # Exception that is raised when we can't lock because of some other
   # process that is holding the lock now. There is an encapsulated
-  # <tt>start</tt> attribute of type <tt>Time</tt>, which points to the time
-  # when we started to try to acquire lock.
+  # <tt>start</tt> attribute of type <tt>Time</tt>, which is the modification
+  # time of the lock file, that is, the moment when its current holder
+  # acquired the lock, not the moment when we started waiting.
   class CantLock < StandardError
     attr_reader :start
 
@@ -101,7 +102,7 @@ class Futex
               "#{b} can't get #{prefix}exclusive access " \
               "to the file #{@path} because of the lock at #{@lock}, after #{age(start)} " \
               "of waiting: #{File.read(@lock)} (modified #{age(File.mtime(@lock))} ago)",
-              start
+              File.mtime(@lock)
             )
           )
         end
