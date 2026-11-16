@@ -76,33 +76,50 @@ class FutexTest < Minitest::Test
   def test_waits_with_integer_sleep_above_one_second
     Dir.mktmpdir do |dir|
       path = File.join(dir, 'a/b/file.txt')
-      Thread.start do
-        Futex.new(path).open do
-          sleep(2)
+      holder, acquired, release = hold(path)
+      contender = nil
+      begin
+        acquired.pop
+        assert_raises(Futex::CantLock) do
+          Futex.new(path, sleep: 2, timeout: 5).open
         end
+        outcome = Queue.new
+        contender =
+          Thread.start do
+            begin
+              Futex.new(path, sleep: 2, timeout: 10).open do |f|
+                File.write(f, 'done')
+              end
+              outcome << :acquired
+            rescue StandardError => e
+              outcome << e
+            end
+          end
+        release << true
+        assert_equal(:acquired, outcome.pop)
+        assert_equal('done', File.read(path))
+      ensure
+        release << true
+        reap(holder, contender)
       end
-      sleep(1)
-      Futex.new(path, sleep: 2, timeout: 10).open do |f|
-        File.write(f, 'done')
-      end
-      assert_equal('done', File.read(path))
     end
   end
 
   def test_raises_if_cant_lock_with_big_sleep
     Dir.mktmpdir do |dir|
       path = File.join(dir, 'a/b/file.txt')
-      Thread.start do
-        Futex.new(path).open do
-          sleep(10)
-        end
+      holder, acquired, release = hold(path)
+      begin
+        acquired.pop
+        ex =
+          assert_raises(Futex::CantLock) do
+            Futex.new(path, sleep: 1.5, timeout: 2).open
+          end
+        assert_includes(ex.message, "can't get exclusive access to the file", ex)
+      ensure
+        release << true
+        reap(holder)
       end
-      sleep(2)
-      ex =
-        assert_raises(Futex::CantLock) do
-          Futex.new(path, sleep: 1.5, timeout: 2).open
-        end
-      assert_includes(ex.message, "can't get exclusive access to the file", ex)
     end
   end
 
@@ -219,6 +236,35 @@ class FutexTest < Minitest::Test
   end
 
   private
+
+  # Starts a background thread that acquires the lock at +path+ and keeps
+  # it until something is pushed into the release queue. Returns the holder
+  # thread together with two latches: the first one signals that the lock
+  # has been acquired, the second one releases it.
+  def hold(path)
+    acquired = Queue.new
+    release = Queue.new
+    [
+      Thread.start do
+        Futex.new(path).open do
+          acquired << true
+          release.pop
+        end
+      end,
+      acquired,
+      release
+    ]
+  end
+
+  # Joins every given thread (up to 15 seconds each) and kills those that
+  # are still alive, so no thread outlives the test and keeps using files
+  # that are about to be deleted by the temporary directory cleanup.
+  def reap(*threads)
+    threads.compact.each do |thread|
+      thread.join(15)
+      thread.kill if thread.alive?
+    end
+  end
 
   def hash(text)
     Digest::SHA256.hexdigest(text)
