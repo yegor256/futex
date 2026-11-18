@@ -211,6 +211,80 @@ class FutexTest < Minitest::Test
     end
   end
 
+  def test_restores_thread_vars_after_nested_lock
+    Dir.mktmpdir do |dir|
+      outer = File.join(dir, 'outer.txt')
+      inner = File.join(dir, 'inner.txt')
+      Futex.new(outer).open do |o|
+        Futex.new(inner).open do |i|
+          assert_equal("#{i}.lock", Thread.current.thread_variable_get(:futex_lock))
+        end
+        assert_equal("#{o}.lock", Thread.current.thread_variable_get(:futex_lock))
+        assert_includes(Thread.current.thread_variable_get(:futex_badge), '-ex/nil')
+      end
+    end
+  end
+
+  def test_clears_vars_after_nested_locks_release
+    Dir.mktmpdir do |dir|
+      outer = File.join(dir, 'outer.txt')
+      inner = File.join(dir, 'inner.txt')
+      Futex.new(outer).open do
+        Futex.new(inner).open
+      end
+      assert_equal(
+        { futex_lock: nil, futex_badge: nil, futex_cycle: nil, futex_time: nil },
+        %i[futex_lock futex_badge futex_cycle futex_time].to_h do |key|
+          [key, Thread.current.thread_variable_get(key)]
+        end
+      )
+      refute_path_exists("#{outer}.lock")
+      refute_path_exists("#{inner}.lock")
+    end
+  end
+
+  def test_restores_vars_after_inner_raises
+    Dir.mktmpdir do |dir|
+      outer = File.join(dir, 'outer.txt')
+      inner = File.join(dir, 'inner.txt')
+      Futex.new(outer).open do |o|
+        assert_raises(StandardError) do
+          Futex.new(inner).open do
+            raise(StandardError, 'boom')
+          end
+        end
+        assert_equal("#{o}.lock", Thread.current.thread_variable_get(:futex_lock))
+        assert_includes(Thread.current.thread_variable_get(:futex_badge), '-ex/nil')
+      end
+    end
+  end
+
+  def test_restores_vars_after_inner_cant_lock
+    Dir.mktmpdir do |dir|
+      outer = File.join(dir, 'outer.txt')
+      inner = File.join(dir, 'inner.txt')
+      holder, acquired, release = hold(inner)
+      begin
+        acquired.pop
+        Futex.new(outer).open do |o|
+          assert_raises(Futex::CantLock) do
+            Futex.new(inner, timeout: 0.1).open
+          end
+          assert_equal("#{o}.lock", Thread.current.thread_variable_get(:futex_lock))
+          assert_equal(
+            { futex_cycle: nil, futex_time: nil },
+            %i[futex_cycle futex_time].to_h do |key|
+              [key, Thread.current.thread_variable_get(key)]
+            end
+          )
+        end
+      ensure
+        release << true
+        reap(holder)
+      end
+    end
+  end
+
   def test_saves_calling_file_name_in_lock
     Dir.mktmpdir do |dir|
       Futex.new(File.join(dir, 'hey.txt')).open do |f|
