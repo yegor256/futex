@@ -50,8 +50,6 @@ class Futex
     end
   end
 
-  COUNTS = File.join(Dir.tmpdir, 'futex.lock').freeze
-
   # Creates a new instance of the class.
   def initialize(
     path, log: $stdout, timeout: 16, sleep: 0.005,
@@ -156,29 +154,30 @@ class Futex
 
   def acquire(path)
     path = File.absolute_path(path)
+    counts = File.join(File.dirname(path), 'futex.lock')
     file = nil
-    synchronized do |counts|
+    synchronized(counts) do |f|
       file = File.open(path, File::CREAT | File::RDWR)
-      refs = deserialize(File.read(counts.path))
+      refs = deserialize(File.read(f.path))
       refs[path] = (refs[path] || 0) + 1
-      File.write(counts.path, serialize(refs))
+      File.write(f.path, serialize(refs))
     end
     yield(file)
   ensure
-    synchronized do |counts|
+    synchronized(counts) do |f|
       file&.close
-      refs = deserialize(File.read(counts.path))
+      refs = deserialize(File.read(f.path))
       refs[path] = (refs[path] || 1) - 1
       if refs[path].zero?
         FileUtils.rm(path, force: true)
         refs.delete(path)
       end
-      File.write(counts.path, serialize(refs))
+      File.write(f.path, serialize(refs))
     end
   end
 
-  def synchronized
-    File.open(COUNTS, File::CREAT | File::RDWR) do |f|
+  def synchronized(counts)
+    File.open(counts, File::CREAT | File::RDWR) do |f|
       f.flock(File::LOCK_EX)
       yield(f)
     end

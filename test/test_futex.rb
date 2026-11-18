@@ -5,6 +5,7 @@
 
 require 'digest'
 require 'minitest/autorun'
+require 'rbconfig'
 require 'securerandom'
 require 'threads'
 require 'tmpdir'
@@ -58,18 +59,20 @@ class FutexTest < Minitest::Test
   def test_raises_if_cant_lock
     Dir.mktmpdir do |dir|
       path = File.join(dir, 'the/simple/file.txt')
-      Thread.start do
-        Futex.new(path).open do
-          sleep(10)
-        end
+      holder, acquired, release = hold(path)
+      begin
+        acquired.pop
+        sleep(2)
+        ex =
+          assert_raises(Futex::CantLock) do
+            Futex.new(path, timeout: 0.1).open
+          end
+        assert_includes(ex.message, "can't get exclusive access to the file", ex)
+        assert_operator(ex.start, :<, Time.now - 1)
+      ensure
+        release << true
+        reap(holder)
       end
-      sleep(2)
-      ex =
-        assert_raises(Futex::CantLock) do
-          Futex.new(path, timeout: 0.1).open
-        end
-      assert_includes(ex.message, "can't get exclusive access to the file", ex)
-      assert_operator(ex.start, :<, Time.now - 1)
     end
   end
 
@@ -191,7 +194,14 @@ class FutexTest < Minitest::Test
         File.write(f, 'hey')
         FileUtils.rm(f)
       end
-      assert_equal(2, Dir.new(dir).count)
+      refute_path_exists(File.join(dir, 'hey.txt'))
+      refute_path_exists(File.join(dir, 'hey.txt.lock'))
+    end
+  end
+
+  def test_survives_different_tmpdir
+    Dir.mktmpdir do |dir|
+      race(dir)
     end
   end
 
@@ -227,15 +237,94 @@ class FutexTest < Minitest::Test
   end
 
   def test_works_with_broken_counts_file
-    File.write(Futex::COUNTS, 'fds')
     Dir.mktmpdir do |dir|
+      File.write(File.join(dir, 'futex.lock'), 'fds')
       Futex.new(File.join(dir, 'hey.txt')).open do |f|
-        refute_path_exists(f)
+        File.write(f, 'hey')
       end
+      assert_equal('hey', File.read(File.join(dir, 'hey.txt')))
     end
   end
 
   private
+
+  def race(dir)
+    lib = File.expand_path('../lib', __dir__)
+    path = File.join(dir, 'data.txt')
+    lock = "#{path}.lock"
+    homes = %w[a b c d].map { |n| FileUtils.mkdir_p(File.join(dir, "tmp-#{n}")).first }
+    held = File.join(dir, 'held')
+    release = File.join(dir, 'release')
+    acquired = File.join(dir, 'acquired')
+    holder = nil
+    begin
+      holder = boot(lib, dir, homes[0], ['hold', path, held, release, acquired, '60'])
+      await(held, 'holder failed to acquire the lock')
+      inode = File.stat(lock).ino
+      contender(lib, dir, homes[1], path, release, acquired, '1', 'first contender took the lock')
+      assert_equal(inode, File.stat(lock).ino)
+      contender(lib, dir, homes[2], path, release, acquired, '2', 'second contender took the lock')
+      assert_equal(inode, File.stat(lock).ino)
+      File.write(release, 'go')
+      wait(holder)
+      wait(boot(lib, dir, homes[3], ['try', path, '', release, acquired, '5']))
+      await(acquired, 'late contender failed to acquire the released lock')
+    ensure
+      kill(holder)
+    end
+  end
+
+  def boot(lib, dir, home, args)
+    worker = File.join(dir, 'worker.rb')
+    File.write(worker, script) unless File.exist?(worker)
+    Process.spawn({ 'TMPDIR' => home }, RbConfig.ruby, '-I', lib, worker, *args)
+  end
+
+  def script
+    <<~RUBY
+      require 'tmpdir'
+      require 'futex'
+      mode, path, held, release, acquired, timeout = ARGV
+      if mode == 'hold'
+        Futex.new(path).open do
+          File.write(held, Process.pid.to_s)
+          sleep(0.05) until File.exist?(release)
+        end
+      else
+        begin
+          Futex.new(path, timeout: Float(timeout), sleep: 0.01).open do
+            File.write(acquired, Process.pid.to_s)
+          end
+        rescue Futex::CantLock
+          nil
+        end
+      end
+    RUBY
+  end
+
+  def contender(lib, dir, home, path, release, acquired, timeout, msg)
+    wait(boot(lib, dir, home, ['try', path, '', release, acquired, timeout]))
+    refute_path_exists(acquired, msg)
+  end
+
+  def wait(pid)
+    _, status = Process.wait2(pid)
+    assert_equal(0, status.exitstatus)
+  end
+
+  def kill(pid)
+    return if pid.nil?
+    Process.kill('KILL', pid)
+    Process.waitpid(pid)
+  rescue Errno::ESRCH, Errno::ECHILD
+    nil
+  end
+
+  def await(file, msg)
+    deadline = Time.now + 10
+    sleep(0.05) until File.exist?(file) || Time.now > deadline
+    assert_path_exists(file, msg)
+  end
 
   # Starts a background thread that acquires the lock at +path+ and keeps
   # it until something is pushed into the release queue. Returns the holder
