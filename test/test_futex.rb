@@ -226,11 +226,55 @@ class FutexTest < Minitest::Test
     end
   end
 
-  def test_works_with_broken_counts_file
-    File.write(Futex::COUNTS, 'fds')
+  def test_rejects_broken_counts_file
+    ['fds', '{"a":1'].each do |content|
+      File.write(Futex::DATA, content)
+      Dir.mktmpdir do |dir|
+        assert_raises(JSON::ParserError) do
+          Futex.new(File.join(dir, 'hey.txt')).open
+        end
+        assert_equal(content, File.read(Futex::DATA))
+      end
+    end
+  ensure
+    FileUtils.rm_f(Futex::DATA)
+  end
+
+  def test_rejects_empty_counts_file
+    File.write(Futex::DATA, '')
+    Dir.mktmpdir do |dir|
+      assert_raises(JSON::ParserError) do
+        Futex.new(File.join(dir, 'hey.txt')).open
+      end
+      assert_path_exists(Futex::DATA)
+      assert_equal('', File.read(Futex::DATA))
+    end
+  ensure
+    FileUtils.rm_f(Futex::DATA)
+  end
+
+  def test_keeps_held_lock_when_counts_are_corrupt
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, 'hey.txt')
+      assert_raises(JSON::ParserError) do
+        Futex.new(path).open do
+          File.write(Futex::DATA, 'fds')
+        end
+      end
+      assert_path_exists("#{path}.lock")
+      assert_equal('fds', File.read(Futex::DATA))
+    end
+  ensure
+    FileUtils.rm_f(Futex::DATA)
+  end
+
+  def test_initializes_counts_when_data_absent
+    FileUtils.rm_f(Futex::DATA)
     Dir.mktmpdir do |dir|
       Futex.new(File.join(dir, 'hey.txt')).open do |f|
-        refute_path_exists(f)
+        File.write(f, 'hey')
+        assert_path_exists(Futex::DATA)
+        assert_instance_of(Hash, JSON.parse(File.read(Futex::DATA)))
       end
     end
   end
