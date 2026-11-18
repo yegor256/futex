@@ -235,6 +235,53 @@ class FutexTest < Minitest::Test
     end
   end
 
+  def test_does_not_delete_held_lock_via_alias
+    Dir.mktmpdir do |dir|
+      real = File.join(dir, 'real')
+      Dir.mkdir(real)
+      link = File.join(dir, 'link')
+      File.symlink(real, link)
+      target = File.join(real, 'file.txt')
+      lock = "#{target}.lock"
+      holder, acquired, release = hold(target)
+      begin
+        acquired.pop
+        [File.join(link, 'file.txt.lock'), File.join(dir, 'link', '..', 'real', 'file.txt.lock')].each do |alt|
+          bounces(lock, alt, target)
+        end
+      ensure
+        release << true
+        reap(holder)
+      end
+    end
+  end
+
+  def test_keeps_lock_when_holder_leaves_waiter
+    Dir.mktmpdir do |dir|
+      real = File.join(dir, 'real')
+      Dir.mkdir(real)
+      link = File.join(dir, 'link')
+      File.symlink(real, link)
+      target = File.join(real, 'file.txt')
+      lock = "#{target}.lock"
+      holder, acquired, release = hold(target)
+      outcome = Queue.new
+      finish = Queue.new
+      waiter = nil
+      begin
+        acquired.pop
+        waiter = knock(File.join(link, 'file.txt.lock'), target, outcome, finish)
+        assert(waits? { refs(lock) >= 2 }, 'waiter did not register in the counts file')
+        release << true
+        hands(lock, target, outcome)
+      ensure
+        finish << true
+        release << true
+        reap(holder, waiter)
+      end
+    end
+  end
+
   private
 
   # Starts a background thread that acquires the lock at +path+ and keeps
@@ -264,6 +311,63 @@ class FutexTest < Minitest::Test
       thread.join(15)
       thread.kill if thread.alive?
     end
+  end
+
+  def bounces(lock, alt, target)
+    before = File.stat(lock).ino
+    assert_raises(Futex::CantLock) do
+      Futex.new(target, lock: alt, timeout: 0.3).open
+    end
+    assert_path_exists(lock)
+    assert_equal(before, File.stat(lock).ino)
+    assert_raises(Futex::CantLock) do
+      Futex.new(target, timeout: 0.3).open
+    end
+    assert_equal(before, File.stat(lock).ino)
+  end
+
+  def knock(alt, target, outcome, finish)
+    Thread.start do
+      begin
+        Futex.new(target, lock: alt, timeout: 15).open do
+          outcome << :acquired
+          finish.pop
+        end
+      rescue StandardError => e
+        outcome << e
+      end
+    end
+  end
+
+  def hands(lock, target, outcome)
+    before = File.stat(lock).ino
+    assert_equal(:acquired, outcome.pop)
+    assert_raises(Futex::CantLock) do
+      Futex.new(target, timeout: 0.5).open
+    end
+    assert_path_exists(lock)
+    assert_equal(before, File.stat(lock).ino, "was #{before}")
+  end
+
+  def refs(path)
+    JSON.parse(File.read(Futex::COUNTS)).sum do |key, value|
+      begin
+        File.realpath(key) == File.realpath(path) ? value : 0
+      rescue Errno::ENOENT
+        0
+      end
+    end
+  rescue Errno::ENOENT, JSON::ParserError
+    0
+  end
+
+  def waits?(seconds = 5)
+    deadline = Time.now + seconds
+    until yield
+      return false if Time.now > deadline
+      sleep(0.01)
+    end
+    true
   end
 
   def hash(text)
