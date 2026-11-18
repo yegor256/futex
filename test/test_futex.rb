@@ -5,6 +5,8 @@
 
 require 'digest'
 require 'minitest/autorun'
+require 'open3'
+require 'rbconfig'
 require 'securerandom'
 require 'threads'
 require 'tmpdir'
@@ -235,6 +237,18 @@ class FutexTest < Minitest::Test
     end
   end
 
+  def test_rejects_lock_that_is_the_counts_file
+    Dir.mktmpdir do |dir|
+      tmp = File.join(dir, 'tmp')
+      work = File.join(dir, 'work')
+      FileUtils.mkdir_p(tmp)
+      FileUtils.mkdir_p(work)
+      File.write(File.join(tmp, 'futex.lock'), '{"other":2}')
+      status, out, err = sandbox(script(work, tmp))
+      assert_equal(0, status, "stdout: #{out}\nstderr: #{err}")
+    end
+  end
+
   private
 
   # Starts a background thread that acquires the lock at +path+ and keeps
@@ -264,6 +278,64 @@ class FutexTest < Minitest::Test
       thread.join(15)
       thread.kill if thread.alive?
     end
+  end
+
+  # Spawns a Ruby child process that runs the given script, and never lets
+  # it run longer than 15 seconds, so a regression back to the deadlock
+  # fails the test instead of hanging the whole suite.
+  def sandbox(script)
+    _stdin, stdout, stderr, wait = Open3.popen3(RbConfig.ruby, '-I', File.expand_path('../lib', __dir__), '-e', script)
+    if wait.join(15).nil?
+      Process.kill('KILL', wait.pid)
+      wait.join
+      raise(StandardError, "the child process hangs: #{stderr.read}")
+    end
+    [wait.value.exitstatus, stdout.read, stderr.read]
+  end
+
+  # A script for the child process, which sets its temporary directory
+  # to +tmp+ before loading Futex, tries to lock the counter file through
+  # the default path, the direct path, a symlink and a hard link, then
+  # proves the counter file stays untouched and unrelated locks work.
+  def script(work, tmp)
+    <<~RUBY
+      ENV['TMPDIR'] = #{tmp.inspect}
+      require 'tmpdir'
+      require 'futex'
+      counts = File.join(Dir.tmpdir, 'futex.lock')
+      begin
+        Futex.new(File.join(Dir.tmpdir, 'futex')).open
+        abort('the default lock equal to the counter file was accepted')
+      rescue ArgumentError => e
+        abort('wrong error message: ' + e.message) unless e.message.include?('reserved by Futex')
+      end
+      [
+        counts,
+        File.join(Dir.tmpdir, 'alias.lock'),
+        File.join(Dir.tmpdir, 'hard.lock')
+      ].each_with_index do |lock, i|
+        FileUtils.ln_s(counts, File.join(Dir.tmpdir, 'alias.lock')) if i == 1
+        FileUtils.ln(counts, File.join(Dir.tmpdir, 'hard.lock')) if i == 2
+        begin
+          Futex.new(File.join(#{work.inspect}, "f\#{i}.txt"), lock: lock).open
+          abort('a lock equal to the counter file was accepted')
+        rescue ArgumentError => e
+          abort('wrong error message: ' + e.message) unless e.message.include?('reserved by Futex')
+        end
+      end
+      unless File.read(counts) == '{"other":2}'
+        abort('the counter file changed: ' + File.read(counts))
+      end
+      Futex.new(File.join(#{work.inspect}, 'g.txt')).open do |f|
+        File.write(f, 'ok')
+      end
+      unless File.read(counts) == '{"other":2}'
+        abort('the counter file is broken: ' + File.read(counts))
+      end
+      unless File.read(File.join(#{work.inspect}, 'g.txt')) == 'ok'
+        abort('an unrelated lock did not work')
+      end
+    RUBY
   end
 
   def hash(text)

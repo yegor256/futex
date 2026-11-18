@@ -80,6 +80,7 @@ class Futex
   # an "exclusive" access. This mechanism is inherited from POSIX, read about
   # it <a href="http://man7.org/linux/man-pages/man2/flock.2.html">here</a>.
   def open(exclusive = true)
+    lockable(@lock)
     FileUtils.mkdir_p(File.dirname(@lock))
     step = [Integer(1 / Float(@sleep)), 1].max
     start = Time.now
@@ -152,6 +153,13 @@ class Futex
     elsif @log.respond_to?(:puts)
       @log.puts(msg)
     end
+  end
+
+  def lockable(path)
+    lock = File.absolute_path(path)
+    counter = File.absolute_path(COUNTS)
+    return unless lock == counter || File.identical?(lock, counter)
+    raise(ArgumentError, "The lock file #{lock} is reserved by Futex")
   end
 
   def acquire(path)
