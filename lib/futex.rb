@@ -51,6 +51,7 @@ class Futex
   end
 
   COUNTS = File.join(Dir.tmpdir, 'futex.lock').freeze
+  DATA = File.join(Dir.tmpdir, 'futex.counts').freeze
 
   # Creates a new instance of the class.
   def initialize(
@@ -157,31 +158,39 @@ class Futex
   def acquire(path)
     path = File.absolute_path(path)
     file = nil
-    synchronized do |counts|
+    synchronized do
       file = File.open(path, File::CREAT | File::RDWR)
-      refs = deserialize(File.read(counts.path))
+      refs = File.exist?(DATA) ? deserialize(File.read(DATA)) : {}
       refs[path] = (refs[path] || 0) + 1
-      File.write(counts.path, serialize(refs))
+      save(refs)
     end
     yield(file)
   ensure
-    synchronized do |counts|
+    synchronized do
       file&.close
-      refs = deserialize(File.read(counts.path))
+      refs = File.exist?(DATA) ? deserialize(File.read(DATA)) : {}
       refs[path] = (refs[path] || 1) - 1
       if refs[path].zero?
         FileUtils.rm(path, force: true)
         refs.delete(path)
       end
-      File.write(counts.path, serialize(refs))
+      save(refs)
     end
   end
 
   def synchronized
     File.open(COUNTS, File::CREAT | File::RDWR) do |f|
       f.flock(File::LOCK_EX)
-      yield(f)
+      yield
     end
+  end
+
+  def save(refs)
+    tmp = "#{DATA}.#{Process.pid}.#{Thread.current.object_id}"
+    File.write(tmp, serialize(refs))
+    File.rename(tmp, DATA)
+  ensure
+    FileUtils.rm_f(tmp)
   end
 
   def serialize(data)
@@ -189,8 +198,8 @@ class Futex
   end
 
   def deserialize(data)
-    data.empty? ? {} : JSON.parse(data)
-  rescue JSON::ParserError
-    {}
+    refs = JSON.parse(data)
+    raise(JSON::ParserError, "counts at #{DATA} are corrupt") unless refs.is_a?(Hash)
+    refs
   end
 end
