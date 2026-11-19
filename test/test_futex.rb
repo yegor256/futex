@@ -3,8 +3,11 @@
 # SPDX-FileCopyrightText: Copyright (c) 2018-2026 Yegor Bugayenko
 # SPDX-License-Identifier: MIT
 
+require 'English'
 require 'digest'
+require 'json'
 require 'minitest/autorun'
+require 'rbconfig'
 require 'securerandom'
 require 'threads'
 require 'tmpdir'
@@ -15,6 +18,18 @@ require_relative '../lib/futex'
 # Copyright:: Copyright (c) 2018-2026 Yegor Bugayenko
 # License:: MIT
 class FutexTest < Minitest::Test
+  CHILD_CODE = <<~'RUBY'
+    require 'tmpdir'
+    require 'futex'
+    File.umask(0o022)
+    target = ENV.fetch('TARGET')
+    Futex.new(target).open do |f|
+      File.write(f, "written by #{Process.uid}")
+      raise 'wrong content' unless File.read(f) == "written by #{Process.uid}"
+    end
+    puts 'OK'
+  RUBY
+
   def test_syncs_access_to_file
     Dir.mktmpdir do |dir|
       path = File.join(dir, 'a/b/c/file.txt')
@@ -235,7 +250,73 @@ class FutexTest < Minitest::Test
     end
   end
 
+  def test_two_users_share_the_counts_file
+    skip('needs root to switch users') unless Process.uid.zero?
+    Dir.mktmpdir do |dir|
+      FileUtils.chmod(0o755, dir)
+      purge
+      runner(666_001, 'owner', dir)
+      runner(666_002, 'guest', dir)
+      assert_equal({}, JSON.parse(File.read(Futex::COUNTS)))
+      assert_equal(0o666, File.stat(Futex::COUNTS).mode & 0o777)
+    end
+  end
+
+  def test_migrates_counts_file_left_by_older_version
+    skip('needs root to switch users') unless Process.uid.zero?
+    Dir.mktmpdir do |dir|
+      FileUtils.chmod(0o755, dir)
+      purge
+      File.write(Futex::COUNTS, '{}')
+      FileUtils.chown(666_001, 666_001, Futex::COUNTS)
+      FileUtils.chmod(0o644, Futex::COUNTS)
+      runner(666_001, 'owner', dir)
+      assert_equal(0o666, File.stat(Futex::COUNTS).mode & 0o777)
+      runner(666_002, 'guest', dir)
+      assert_equal({}, JSON.parse(File.read(Futex::COUNTS)))
+    end
+  end
+
+  def test_opens_counts_file_owned_by_another_user
+    skip('needs root to switch users') unless Process.uid.zero?
+    Dir.mktmpdir do |dir|
+      FileUtils.chmod(0o755, dir)
+      purge
+      File.write(Futex::COUNTS, '{}')
+      FileUtils.chown(666_001, 666_001, Futex::COUNTS)
+      FileUtils.chmod(0o666, Futex::COUNTS)
+      runner(666_002, 'guest', dir)
+      assert_equal({}, JSON.parse(File.read(Futex::COUNTS)))
+    end
+  end
+
   private
+
+  def purge
+    FileUtils.rm_f(Futex::COUNTS)
+  end
+
+  def runner(uid, name, dir)
+    home = File.join(dir, name)
+    FileUtils.mkdir_p(home)
+    FileUtils.chown(uid, uid, home)
+    FileUtils.chmod(0o700, home)
+    script = File.join(dir, 'child.rb')
+    File.write(script, CHILD_CODE)
+    rd, wr = IO.pipe
+    Process.wait(
+      Process.spawn(
+        { 'TARGET' => File.join(home, 'x.txt'), 'TMPDIR' => Dir.tmpdir },
+        RbConfig.ruby, '-I', File.expand_path('../lib', __dir__), script,
+        chdir: '/tmp', uid: uid, gid: uid, in: '/dev/null', out: wr, err: wr
+      )
+    )
+    wr.close
+    output = rd.read
+    rd.close
+    raise(StandardError, "user #{name} failed: #{output}") unless $CHILD_STATUS.success?
+    assert_equal("OK\n", output)
+  end
 
   # Starts a background thread that acquires the lock at +path+ and keeps
   # it until something is pushed into the release queue. Returns the holder

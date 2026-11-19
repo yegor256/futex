@@ -159,29 +159,42 @@ class Futex
     file = nil
     synchronized do |counts|
       file = File.open(path, File::CREAT | File::RDWR)
-      refs = deserialize(File.read(counts.path))
+      refs = deserialize(counts.read)
       refs[path] = (refs[path] || 0) + 1
-      File.write(counts.path, serialize(refs))
+      rewrite(counts, serialize(refs))
     end
     yield(file)
   ensure
     synchronized do |counts|
       file&.close
-      refs = deserialize(File.read(counts.path))
+      refs = deserialize(counts.read)
       refs[path] = (refs[path] || 1) - 1
       if refs[path].zero?
         FileUtils.rm(path, force: true)
         refs.delete(path)
       end
-      File.write(counts.path, serialize(refs))
+      rewrite(counts, serialize(refs))
     end
   end
 
   def synchronized
-    File.open(COUNTS, File::CREAT | File::RDWR) do |f|
-      f.flock(File::LOCK_EX)
-      yield(f)
+    begin
+      counts = File.open(COUNTS, File::CREAT | File::EXCL | File::RDWR, 0o666)
+      counts.chmod(0o666)
+    rescue Errno::EEXIST
+      counts = File.open(COUNTS, File::RDWR)
     end
+    counts.chmod(0o666) if counts.stat.owned? && (counts.stat.mode & 0o777) != 0o666
+    counts.flock(File::LOCK_EX)
+    yield(counts)
+  ensure
+    counts&.close
+  end
+
+  def rewrite(counts, data)
+    counts.rewind
+    counts.truncate(0)
+    counts.write(data)
   end
 
   def serialize(data)
