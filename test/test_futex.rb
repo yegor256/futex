@@ -6,6 +6,7 @@
 require 'digest'
 require 'minitest/autorun'
 require 'securerandom'
+require 'stringio'
 require 'threads'
 require 'tmpdir'
 require_relative '../lib/futex'
@@ -226,6 +227,42 @@ class FutexTest < Minitest::Test
     end
   end
 
+  def test_logs_unlocked_after_block_runs
+    Dir.mktmpdir do |dir|
+      log = StringIO.new
+      Futex.new(File.join(dir, 'hey.txt'), log: log, logging: true).open do
+        log.puts('inside')
+        sleep(0.2)
+      end
+      assert_equal(['Locked by', 'inside', 'Unlocked by'], events(log))
+    end
+  end
+
+  def test_logs_unlocked_with_held_time
+    Dir.mktmpdir do |dir|
+      log = StringIO.new
+      Futex.new(File.join(dir, 'hey.txt'), log: log, logging: true).open do
+        sleep(0.2)
+      end
+      held = log.string.match(/Unlocked by .* in (\d+)(μs|ms|s), exclusive:/)
+      refute_nil(held)
+      assert_operator({ 'μs' => 1e-6, 'ms' => 1e-3, 's' => 1 }.fetch(held[2]) * Integer(held[1], 10), :>=, 0.15)
+    end
+  end
+
+  def test_logs_unlocked_when_block_raises
+    Dir.mktmpdir do |dir|
+      log = StringIO.new
+      assert_raises(RuntimeError) do
+        Futex.new(File.join(dir, 'hey.txt'), log: log, logging: true).open do
+          log.puts('inside')
+          raise(RuntimeError, 'oops')
+        end
+      end
+      assert_equal(['Locked by', 'inside', 'Unlocked by'], events(log))
+    end
+  end
+
   def test_works_with_broken_counts_file
     File.write(Futex::COUNTS, 'fds')
     Dir.mktmpdir do |dir|
@@ -268,5 +305,9 @@ class FutexTest < Minitest::Test
 
   def hash(text)
     Digest::SHA256.hexdigest(text)
+  end
+
+  def events(log)
+    log.string.split("\n").map { |line| line[/\A(Locked by|Unlocked by)/] || line }
   end
 end
