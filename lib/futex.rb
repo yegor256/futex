@@ -159,6 +159,7 @@ class Futex
     file = nil
     synchronized do |counts|
       file = File.open(path, File::CREAT | File::RDWR)
+      path = File.realpath(path)
       refs = deserialize(File.read(counts.path))
       refs[path] = (refs[path] || 0) + 1
       File.write(counts.path, serialize(refs))
