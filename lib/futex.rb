@@ -80,6 +80,7 @@ class Futex
   # an "exclusive" access. This mechanism is inherited from POSIX, read about
   # it <a href="http://man7.org/linux/man-pages/man2/flock.2.html">here</a>.
   def open(exclusive = true)
+    outer = snapshot
     FileUtils.mkdir_p(File.dirname(@lock))
     step = [Integer(1 / Float(@sleep)), 1].max
     start = Time.now
@@ -122,10 +123,7 @@ class Futex
       (block_given? ? yield(@path) : nil)
     end
   ensure
-    Thread.current.thread_variable_set(:futex_cycle, nil)
-    Thread.current.thread_variable_set(:futex_time, nil)
-    Thread.current.thread_variable_set(:futex_lock, nil)
-    Thread.current.thread_variable_set(:futex_badge, nil)
+    outer&.each { |var, was| Thread.current.thread_variable_set(var, was) }
   end
 
   private
@@ -192,5 +190,13 @@ class Futex
     data.empty? ? {} : JSON.parse(data)
   rescue JSON::ParserError
     {}
+  end
+
+  def snapshot
+    vars = {}
+    %i[futex_lock futex_badge futex_cycle futex_time].each do |key|
+      vars[key] = Thread.current.thread_variable_get(key)
+    end
+    vars
   end
 end
