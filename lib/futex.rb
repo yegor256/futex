@@ -159,29 +159,59 @@ class Futex
     file = nil
     synchronized do |counts|
       file = File.open(path, File::CREAT | File::RDWR)
-      refs = deserialize(File.read(counts.path))
+      refs = deserialize(counts.read)
       refs[path] = (refs[path] || 0) + 1
-      File.write(counts.path, serialize(refs))
+      rewrite(counts, serialize(refs))
     end
     yield(file)
   ensure
     synchronized do |counts|
       file&.close
-      refs = deserialize(File.read(counts.path))
+      refs = deserialize(counts.read)
       refs[path] = (refs[path] || 1) - 1
       if refs[path].zero?
         FileUtils.rm(path, force: true)
         refs.delete(path)
       end
-      File.write(counts.path, serialize(refs))
+      rewrite(counts, serialize(refs))
     end
   end
 
   def synchronized
-    File.open(COUNTS, File::CREAT | File::RDWR) do |f|
-      f.flock(File::LOCK_EX)
-      yield(f)
+    counts = counter
+    counts.chmod(0o666) if counts.stat.owned? && (counts.stat.mode & 0o777) != 0o666
+    counts.flock(File::LOCK_EX)
+    yield(counts)
+  ensure
+    counts&.close
+  end
+
+  # Returns the counts file open for reading and writing. A new counter is
+  # never created in place: it is prepared under a private name in the same
+  # directory and is linked to +COUNTS+ only when its mode is final, so
+  # another user never finds it half-initialized -- whoever sees the name
+  # already taken simply opens the file published by someone else.
+  def counter
+    File.open(COUNTS, File::RDWR)
+  rescue Errno::ENOENT
+    tmp = File.join(File.dirname(COUNTS), ".#{File.basename(COUNTS)}.#{Process.pid}.#{rand(1_000_000)}.tmp")
+    counts = File.open(tmp, File::CREAT | File::EXCL | File::RDWR, 0o666)
+    begin
+      counts.chmod(0o666)
+      File.link(tmp, COUNTS)
+    rescue Errno::EEXIST
+      counts.close
+      counts = File.open(COUNTS, File::RDWR)
+    ensure
+      File.unlink(tmp)
     end
+    counts
+  end
+
+  def rewrite(counts, data)
+    counts.rewind
+    counts.truncate(0)
+    counts.write(data)
   end
 
   def serialize(data)
