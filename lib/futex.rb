@@ -87,6 +87,7 @@ class Futex
     b = badge(exclusive)
     Thread.current.thread_variable_set(:futex_lock, @lock)
     Thread.current.thread_variable_set(:futex_badge, b)
+    acquired = false
     acquire(@lock) do |f|
       cycle = 0
       loop do
@@ -118,10 +119,11 @@ class Futex
       end
       debug("Locked by #{b} in #{age(start)}, #{prefix}exclusive: #{@path} (attempt no.#{cycle})")
       File.write(@lock, b)
-      debug("Unlocked by #{b} in #{age(Time.now)}, #{prefix}exclusive: #{@path}")
+      acquired = Time.now
       (block_given? ? yield(@path) : nil)
     end
   ensure
+    debug("Unlocked by #{b} in #{age(acquired)}, #{prefix}exclusive: #{@path}") if acquired
     Thread.current.thread_variable_set(:futex_cycle, nil)
     Thread.current.thread_variable_set(:futex_time, nil)
     Thread.current.thread_variable_set(:futex_lock, nil)
